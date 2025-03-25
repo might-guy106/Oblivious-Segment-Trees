@@ -11,7 +11,7 @@
 #include "bst.hpp"
 #include "avl.hpp"
 #include "heapsampler.hpp"
-#include "segment_tree.hpp"
+#include "segmentTree.hpp"
 
 static void online_test(MPCIO &mpcio,
     const PRACOptions &opts, char **args)
