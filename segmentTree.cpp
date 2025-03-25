@@ -29,7 +29,7 @@ void SegmentTree::init(MPCTIO &tio, yield_t & yield) {
         9,  10,  11,  12,  13,  14,  15,  16   // indices 24 to 31 (leaves)
    };
 
-   SegTreeArray.init((size_t i) {
+   SegTreeArray.init([this, &segTree] (size_t i) -> size_t {
     if (i >= 1 && i < num_items) {
         return segTree[i];
     } else {
@@ -38,31 +38,42 @@ void SegmentTree::init(MPCTIO &tio, yield_t & yield) {
    });
 
    auto isEvenArray = isEven.flat(tio, yield);
-   isEvenArray.init((size_t i) {
+   isEvenArray.init([this] (size_t i) -> size_t {
      if (i >= 1 && i < num_items) {
           return (i % 2 == 0) ? 1 : 0;
      } else {
-          return 1; // 0 is even, just for consistency
+          return size_t(1); // 0 is even, just for consistency
      }
     });
 
     auto nextLArray = nextL.flat(tio, yield);
-    nextLArray.init((size_t i) {
+    nextLArray.init([this] (size_t i) -> size_t {
         if (i >= 1 && i < num_items) {
-            return ((arrayIndexToLevelPos(i) + 1)/2);
+            if (i > 1 && ((i + 1) & i) == 0) // i is one less than a power of two.
+                return ((arrayIndexToLevelPos(i) + 1)/2 - 1);
+            else
+                return ((arrayIndexToLevelPos(i) + 1)/2);
         } else {
-            return 0;
+            return size_t(0);
         }
     });
 
     auto nextRArray = nextR.flat(tio, yield);
-    nextRArray.init((size_t i) {
+    nextRArray.init([this] (size_t i) -> size_t {
         if (i >= 1 && i < num_items) {
-            return ((arrayIndexToLevelPos(i) - 1)/2);
+            if ((i & (i - 1)) == 0) // i is a power of two.
+                return size_t(0);
+            else
+                return ((arrayIndexToLevelPos(i) - 1)/2);
         } else {
-            return 0;
+            return size_t(0);
         }
     });
+
+    for(size_t i=1; i<num_items; i++) {
+        value_t recons = mpc_reconstruct(tio, yield, nextRArray[i]);
+        std::cout << "nextRArray[" << i << "] = " << recons << std::endl;
+    }
 }
 
 void SegmentTree::getBitVector(MPCTIO &tio, yield_t & yield, Duoram < RegXS > &bitVec, RegAS left, RegAS right) {
@@ -74,31 +85,55 @@ void SegmentTree::getBitVector(MPCTIO &tio, yield_t & yield, Duoram < RegXS > &b
 
     uint32_t height = static_cast<uint32_t>(std::log2(num_items));
 
-    RegXS incl(1);
-    RegXS excl(0);
+    RegXS incl;
+    incl.set(1);
+    RegXS excl;
+    incl.set(0);
 
     for(uint32_t i=1; i<=height; i++)
     {
+        uint32_t level = height - i;
+        typename Duoram < RegXS > ::Flat bitVecLevel(bitVecArray, tio, yield, (1ULL << level), (1ULL << level));
+        typename Duoram < RegXS > ::Flat isEvenLevel(isEvenArray, tio, yield, (1ULL << level), (1ULL << level));
+        typename Duoram < RegAS > ::Flat nextLLevel(nextLArray, tio, yield, (1ULL << level), (1ULL << level));
+        typename Duoram < RegAS > ::Flat nextRLevel(nextRArray, tio, yield, (1ULL << level), (1ULL << level));
+
         CDPF cdpf = tio.cdpf(yield);
         RegAS diff = right - left;
         auto[lt_c, eq_c, gt_c] = cdpf.compare(tio, yield, diff, tio.aes_ops());
 
-        RegXS leftNode = bitVecArray[left];
-        RegXS rightNode = bitVecArray[right];
-        RegBS one(1);
+        RegXS leftNode = bitVecLevel[left];
+        RegXS rightNode = bitVecLevel[right];
+        RegBS one;
+        one.set(1);
+        RegBS valid;
+        mpc_or(tio, yield, valid, eq_c, gt_c);
 
-        RegBS inclusionL = isEvenArray[left].bit(0);
-        RegBS f = mpc_and(mpc_or(eq_c, gt_c), (inclusionL ^ one));
-        mpc_select(tio, yield, &leftNode, f, excl, incl);
-        bitVecArray[left] = leftNode;
+        value_t recons = mpc_reconstruct(tio, yield, valid);
+        std::cout << "Valid = " << recons << std::endl;
 
-        RegBS inclusionR = isEvenArray[right].bit(0);
-        RegBS g = mpc_and(mpc_or(eq_c, gt_c), inclusionR);
-        mpc_select(tio, yield, &rightNode, g, excl, incl);
-        bitVecArray[right] = rightNode;
+        RegXS isEvenL = isEvenLevel[left];
+        RegBS inclusionL = isEvenL.bitat(0);
+        RegBS f;
+        mpc_and(tio, yield, f, valid, (inclusionL ^ one));
+        mpc_select(tio, yield, leftNode, f, excl, incl);
+        bitVecLevel[left] = leftNode;
 
-        left = nextLArray[left];
-        right = nextRArray[right];
+        value_t recons1 = mpc_reconstruct(tio, yield, f);
+        std::cout << "Left Node = " << recons1 << std::endl;
+
+        RegXS isEvenR = isEvenLevel[right];
+        RegBS inclusionR = isEvenR.bitat(0);
+        RegBS g;
+        mpc_and(tio, yield, g, valid, inclusionR);
+        mpc_select(tio, yield, rightNode, g, excl, incl);
+        bitVecLevel[right] = rightNode;
+
+        value_t recons2 = mpc_reconstruct(tio, yield, g);
+        std::cout << "Right Node = " << recons2 << std::endl;
+
+        left = nextLLevel[left];
+        right = nextRLevel[right];
     }
 }
     
@@ -109,17 +144,26 @@ void SegmentTree::RangeSum(MPCTIO &tio, yield_t & yield, RegAS left, RegAS right
     auto bitVecArray = bitVec.flat(tio, yield);
     auto SegTreeArray = oram.flat(tio, yield);
 
-    RegAS sum(0);
+    RegAS sum;
+    sum.set(0);
 
     for(size_t i=1; i<num_items; i++) {
-        RegBS incl = bitVecArray[i].bit(0);
+        RegXS element = bitVecArray[i];
+        RegBS incl = element.bitat(0);
         RegAS val = SegTreeArray[i];
-        RegAS zero(0);
+        RegAS zero;
+        zero.set(0);
 
         RegAS sum1;
-        mpc_select(tio, yield, &sum1, incl, zero, val);
+        mpc_select(tio, yield, sum1, incl, zero, val);
 
-        sum += sum1;
+        sum.ashare += sum1.ashare;
+
+        value_t answer = mpc_reconstruct(tio, yield, sum);
+        std::cout << "Sum = " << answer << std::endl;
+
+        value_t recons = mpc_reconstruct(tio, yield, element);
+        std::cout << "Element = " << recons << std::endl;
     }
 
     value_t answer = mpc_reconstruct(tio, yield, sum);
@@ -129,22 +173,21 @@ void SegmentTree::RangeSum(MPCTIO &tio, yield_t & yield, RegAS left, RegAS right
 void SegTree(MPCIO &mpcio, const PRACOptions &opts, char **args) {
     nbits_t depth = 5;
 
-    if (*args) {
-        depth = atoi(*args);
-        ++args;
-    }
+    // if (*args) {
+    //     depth = atoi(*args);
+    //     ++args;
+    // }
     
-    address_t len = (1<<depth) + 1;
+    address_t len = (1<<depth);
 
     MPCTIO tio(mpcio, 0, opts.num_cpu_threads);
 
-
     run_coroutines(tio, [&tio, len] (yield_t &yield) {
-        SegmentTree segTree(tio.player(), len - 1);
-        segTree.init(tio, yield, len);
+        SegmentTree segTree(tio.player(), len);
+        segTree.init(tio, yield);
         RegAS left_index, right_index;
-        left_index.set(len/2);
-        right_index.set(len/2 + 4);
+        left_index.set(1);
+        right_index.set(9);
         segTree.RangeSum(tio, yield, left_index, right_index);
     });
 }
