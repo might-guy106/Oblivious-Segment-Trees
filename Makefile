@@ -10,7 +10,7 @@ LDLIBS=-lbsd -lboost_system -lboost_context -lboost_chrono -lboost_thread -lpthr
 BIN=prac
 SRCS=prac.cpp mpcio.cpp preproc.cpp online.cpp mpcops.cpp rdpf.cpp \
     cdpf.cpp duoram.cpp cell.cpp bst.cpp avl.cpp heap.cpp \
-    heapsampler.cpp segment_tree.cpp
+    heapsampler.cpp segmentTree.cpp
 OBJS=$(SRCS:.cpp=.o)
 ASMS=$(SRCS:.cpp=.s)
 
