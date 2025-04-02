@@ -74,6 +74,15 @@ void SegmentTree::init(MPCTIO &tio, yield_t & yield) {
         value_t recons = mpc_reconstruct(tio, yield, nextRArray[i]);
         std::cout << "nextRArray[" << i << "] = " << recons << std::endl;
     }
+
+    auto parentArray = parent.flat(tio, yield);
+    parentArray.init([this] (size_t i) -> size_t {
+        if (i >= 1 && i < num_items) {
+            return i / 2;
+        } else {
+            return size_t(0);
+        }
+    });
 }
 
 void SegmentTree::getBitVector(MPCTIO &tio, yield_t & yield, Duoram < RegXS > &bitVec, RegAS left, RegAS right) {
@@ -88,7 +97,7 @@ void SegmentTree::getBitVector(MPCTIO &tio, yield_t & yield, Duoram < RegXS > &b
     RegXS incl;
     incl.set(1);
     RegXS excl;
-    incl.set(0);
+    excl.set(0);
 
     for(uint32_t i=1; i<=height; i++)
     {
@@ -170,6 +179,33 @@ void SegmentTree::RangeSum(MPCTIO &tio, yield_t & yield, RegAS left, RegAS right
     std::cout << "Sum = " << answer << std::endl;
 }    
 
+void SegmentTree::Update(MPCTIO &tio, yield_t & yield, RegAS index, RegAS value) {
+    auto SegTreeArray = oram.flat(tio, yield);
+    auto parentArray = parent.flat(tio, yield);
+    
+    RegAS disp;
+    disp.set(16);
+
+    RegAS index1 = index + disp;
+
+    RegAS currVal = SegTreeArray[index1];
+    RegAS diff = value - currVal;
+
+    SegTreeArray[index1] = value;
+    for(size_t i=1; i<=4; i++) {
+        RegAS parentIndex = parentArray[index1];
+        SegTreeArray[parentIndex] += diff;
+        index1 = parentIndex;
+    }
+
+    RegAS checkParent;
+    checkParent.set(12);
+    RegAS parentValue = SegTreeArray[checkParent];
+    value_t recons = mpc_reconstruct(tio, yield, parentValue);
+    std::cout << "Parent Value = " << recons << std::endl;
+}
+
+
 void SegTree(MPCIO &mpcio, const PRACOptions &opts, char **args) {
     nbits_t depth = 5;
 
@@ -185,9 +221,20 @@ void SegTree(MPCIO &mpcio, const PRACOptions &opts, char **args) {
     run_coroutines(tio, [&tio, len] (yield_t &yield) {
         SegmentTree segTree(tio.player(), len);
         segTree.init(tio, yield);
+
+        std::cout << "Update begins" << std::endl;
+        RegAS index;
+        index.set(8);
+        RegAS value;
+        value.set(100);
+        segTree.Update(tio, yield, index, value);
+        std::cout << "Update ends" << std::endl;
+
+        std::cout << "Range Sum begins" << std::endl;
         RegAS left_index, right_index;
         left_index.set(1);
         right_index.set(9);
         segTree.RangeSum(tio, yield, left_index, right_index);
+        std::cout << "Range Sum ends" << std::endl;
     });
 }
