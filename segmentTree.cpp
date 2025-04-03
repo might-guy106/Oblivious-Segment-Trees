@@ -102,10 +102,10 @@ void SegmentTree::getBitVector(MPCTIO &tio, yield_t & yield, Duoram < RegXS > &b
     for(uint32_t i=1; i<=height; i++)
     {
         uint32_t level = height - i;
-        typename Duoram < RegXS > ::Flat bitVecLevel(bitVecArray, tio, yield, (1ULL << level), (1ULL << level));
-        typename Duoram < RegXS > ::Flat isEvenLevel(isEvenArray, tio, yield, (1ULL << level), (1ULL << level));
-        typename Duoram < RegAS > ::Flat nextLLevel(nextLArray, tio, yield, (1ULL << level), (1ULL << level));
-        typename Duoram < RegAS > ::Flat nextRLevel(nextRArray, tio, yield, (1ULL << level), (1ULL << level));
+        typename Duoram < RegXS > ::Flat bitVecLevel(bitVecArray, tio, yield, (1ULL << level), (1ULL << level)+1);
+        typename Duoram < RegXS > ::Flat isEvenLevel(isEvenArray, tio, yield, (1ULL << level), (1ULL << level)+1);
+        typename Duoram < RegAS > ::Flat nextLLevel(nextLArray, tio, yield, (1ULL << level), (1ULL << level)+1);
+        typename Duoram < RegAS > ::Flat nextRLevel(nextRArray, tio, yield, (1ULL << level), (1ULL << level)+1);
 
         CDPF cdpf = tio.cdpf(yield);
         RegAS diff = right - left;
@@ -168,11 +168,11 @@ void SegmentTree::RangeSum(MPCTIO &tio, yield_t & yield, RegAS left, RegAS right
 
         sum.ashare += sum1.ashare;
 
-        value_t answer = mpc_reconstruct(tio, yield, sum);
-        std::cout << "Sum = " << answer << std::endl;
+        // value_t answer = mpc_reconstruct(tio, yield, sum);
+        // std::cout << "Sum = " << answer << std::endl;
 
-        value_t recons = mpc_reconstruct(tio, yield, element);
-        std::cout << "Element = " << recons << std::endl;
+        // value_t recons = mpc_reconstruct(tio, yield, element);
+        // std::cout << "Element = " << recons << std::endl;
     }
 
     value_t answer = mpc_reconstruct(tio, yield, sum);
@@ -232,7 +232,7 @@ void SegTree(MPCIO &mpcio, const PRACOptions &opts, char **args) {
 
         std::cout << "Range Sum begins" << std::endl;
         RegAS left_index, right_index;
-        left_index.set(1);
+        left_index.set(0);
         right_index.set(9);
         segTree.RangeSum(tio, yield, left_index, right_index);
         std::cout << "Range Sum ends" << std::endl;
