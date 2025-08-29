@@ -25,7 +25,8 @@ class SegmentTree {
 
         void RangeSum(MPCTIO &tio, yield_t & yield, RegAS left, RegAS right);
         void Update(MPCTIO &tio, yield_t & yield, RegAS index, RegAS value);
-    
+        void printSegmentTree(MPCTIO &tio, yield_t & yield);
+
 };
 
 void SegTree(MPCIO &mpcio, const PRACOptions &opts, char **args);
