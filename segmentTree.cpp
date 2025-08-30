@@ -21,7 +21,6 @@ size_t arrayIndexToLevelPos(size_t idx) {
 
 void SegmentTree::init(MPCTIO &tio, yield_t & yield) {
     auto SegTreeArray = oram.flat(tio, yield);
-    std::cout << "depth in init is: " << depth << std::endl;
     size_t num_leaves = 1ULL << (depth - 1);
     size_t leaf_start = num_leaves;
 
