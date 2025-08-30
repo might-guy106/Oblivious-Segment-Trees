@@ -1,17 +1,12 @@
 # Oblivious Segment Tree Implementation
 
-This document describes the oblivious segment tree implementation in the PRAC framework, which supports efficient range sum queries and point updates while maintaining privacy through secure multi-party computation.
-
-## Overview
-
-The segment tree is a binary tree data structure that allows for efficient range queries and point updates on an array. This implementation uses the PRAC framework to perform these operations obliviously, meaning the actual indices and values being queried or updated remain hidden from the computing parties.
+This document describes the oblivious segment tree implementation in the PRAC framework.
 
 ### Key Features
 
 - **Range Sum Queries**: Compute the sum of elements in any range [left, right] in O(log n) time
 - **Point Updates**: Update individual array elements and propagate changes through the tree
-- **Oblivious Operations**: All operations are performed using secret sharing to maintain privacy
-- **Configurable Parameters**: Adjustable tree depth, number of updates, and number of queries
+
 
 ## Usage
 
