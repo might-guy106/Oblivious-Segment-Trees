@@ -9,6 +9,17 @@
 
 #define SEGTREE_VERBOSE
 
+/*  
+    1 both parties have additive shares of l and r
+    2 always include them
+    3 if l is left child then add its sibling to the sum or if r is right child add its sibling to sum
+    3.1 l and r can be known left child or right child using isEven array computer already (if even left)
+    3.2 get the additive shares of the sibling which was also present (as we will be initialising it in init function similar to isEven) .
+    3.3 based on above two conditions (and the isdone and isvaild bit) set the sibling index in bitvector.
+    4 if sibling of l is r then set isdone bit to 1
+
+*/
+    
 size_t arrayIndexToLevelPos(size_t idx) {
     // Compute level as the floor of log2(idx)
     size_t level = static_cast<size_t>(std::log2(idx));
@@ -54,34 +65,19 @@ void SegmentTree::init(MPCTIO &tio, yield_t & yield) {
      }
     });
 
-    auto nextLArray = nextL.flat(tio, yield);
-    nextLArray.init([this] (size_t i) -> size_t {
+    auto siblingArray = sibling.flat(tio, yield);
+    siblingArray.init([this] (size_t i) -> size_t {
         if (i >= 1 && i < num_items) {
-            if (i > 1 && ((i + 1) & i) == 0) // i is one less than a power of two.
-                return ((arrayIndexToLevelPos(i) + 1)/2 - 1);
-            else
-                return ((arrayIndexToLevelPos(i) + 1)/2);
+            return arrayIndexToLevelPos((i % 2 == 0) ? i + 1 : i - 1); // we took 1s sibling as 0 and 0s as 1 which should not cause any issue.
         } else {
             return size_t(0);
         }
     });
-
-    auto nextRArray = nextR.flat(tio, yield);
-    nextRArray.init([this] (size_t i) -> size_t {
-        if (i >= 1 && i < num_items) {
-            if ((i & (i - 1)) == 0) // i is a power of two.
-                return size_t(0);
-            else
-                return ((arrayIndexToLevelPos(i) - 1)/2);
-        } else {
-            return size_t(0);
-        }
-    });
-
+    // 0,1: 1, 2,3: 1, 3,4
     auto parentArray = parent.flat(tio, yield);
     parentArray.init([this] (size_t i) -> size_t {
         if (i >= 1 && i < num_items) {
-            return i / 2;
+            return arrayIndexToLevelPos(i/2);
         } else {
             return size_t(0);
         }
@@ -100,8 +96,8 @@ void SegmentTree::getBitVector(MPCTIO &tio, yield_t & yield, Duoram < RegXS > &b
 
     auto bitVecArray = bitVec.flat(tio, yield);
     auto isEvenArray = isEven.flat(tio, yield);
-    auto nextLArray = nextL.flat(tio, yield);
-    auto nextRArray = nextR.flat(tio, yield);
+    auto siblingArray = sibling.flat(tio, yield);
+    auto parentArray = parent.flat(tio, yield);
 
     uint32_t height = static_cast<uint32_t>(std::log2(num_items));
 
@@ -115,65 +111,86 @@ void SegmentTree::getBitVector(MPCTIO &tio, yield_t & yield, Duoram < RegXS > &b
     zero.set(0);
     RegBS one;
     one.set(tio.player()==0 ? 1 : 0);
-
     for(uint32_t i=1; i<=height; i++)
     {
         uint32_t level = height - i;
         typename Duoram < RegXS > ::Flat bitVecLevel(bitVecArray, tio, yield, (1ULL << level), (1ULL << level)+1);
         typename Duoram < RegXS > ::Flat isEvenLevel(isEvenArray, tio, yield, (1ULL << level), (1ULL << level)+1);
-        typename Duoram < RegAS > ::Flat nextLLevel(nextLArray, tio, yield, (1ULL << level), (1ULL << level)+1);
-        typename Duoram < RegAS > ::Flat nextRLevel(nextRArray, tio, yield, (1ULL << level), (1ULL << level)+1);
+        typename Duoram < RegAS > ::Flat siblingLevel(siblingArray, tio, yield, (1ULL << level), (1ULL << level)+1);
+        typename Duoram < RegAS > ::Flat parentLevel(parentArray, tio, yield, (1ULL << level), (1ULL << level)+1);
 
+        // if l and r are siblings it is already done before this iteration
+        RegAS leftParent = parentLevel[left];
+        RegAS rightParent = parentLevel[right];
+        CDPF cdpf2 = tio.cdpf(yield);
+        RegAS diff2 = leftParent - rightParent;
+        auto[lt_c2, eq_c2, gt_c2] = cdpf2.compare(tio, yield, diff2, tio.aes_ops());
+        mpc_or(tio, yield, isDone, eq_c2, isDone);
+        
         CDPF cdpf = tio.cdpf(yield);
         RegAS diff = right - left;
         auto[lt_c, eq_c, gt_c] = cdpf.compare(tio, yield, diff, tio.aes_ops());
-
-        RegXS leftIncluded = bitVecLevel[left];
-        RegXS rightIncluded = bitVecLevel[right];
-
+        
         RegBS valid;
-        mpc_or(tio, yield, valid, eq_c, gt_c);
-        mpc_or(tio, yield, isDone, valid ^ one, isDone);
+        mpc_or(tio, yield, valid, eq_c, gt_c);  
 
+        RegAS leftSibling = siblingLevel[left]; 
+        RegAS rightSibling = siblingLevel[right];
 
+        RegXS leftSiblingIncluded = bitVecLevel[leftSibling];
+        RegXS rightSiblingIncluded = bitVecLevel[rightSibling];
 
         RegXS isEvenL = isEvenLevel[left];
-        RegBS inclusionL = isEvenL.bitat(0);
-        RegBS f;
-        mpc_and(tio, yield, f, valid, (inclusionL ^ one));
-        mpc_select(tio, yield, leftIncluded, f, excl, incl);
-
+        RegBS isL_leftchild = isEvenL.bitat(0);
+        mpc_select(tio, yield, leftSiblingIncluded, isL_leftchild, leftSiblingIncluded, incl);
+        
         RegXS isEvenR = isEvenLevel[right];
-        RegBS inclusionR = isEvenR.bitat(0);
-        RegBS g;
-        mpc_and(tio, yield, g, valid, inclusionR);
-        mpc_select(tio, yield, rightIncluded, g, excl, incl);
-
+        RegBS isR_rightchild = one ^ isEvenR.bitat(0);
+        mpc_select(tio, yield, rightSiblingIncluded, isR_rightchild, rightSiblingIncluded, incl);
+        
         // checks if already done . if done then both left and right are 0
-        mpc_select(tio, yield, leftIncluded, isDone, leftIncluded, excl);
-        mpc_select(tio, yield, rightIncluded, isDone, rightIncluded, excl);
+        mpc_select(tio, yield, leftSiblingIncluded, isDone, leftSiblingIncluded, excl);
+        mpc_select(tio, yield, rightSiblingIncluded, isDone, rightSiblingIncluded, excl);
+        
+        // if not valid set left and right 0
+        mpc_select(tio, yield, leftSiblingIncluded, one ^ valid, leftSiblingIncluded, excl);
+        mpc_select(tio, yield, rightSiblingIncluded, one ^ valid, rightSiblingIncluded, excl);
 
-        // if not done and if eq then leftinclude = righinclude = 1 and isDone = 1
-        RegBS temp;
-        mpc_and(tio, yield, temp, isDone ^ one, eq_c);
-        mpc_select(tio, yield, leftIncluded, temp, leftIncluded, incl);
-        mpc_select(tio, yield, rightIncluded, temp, rightIncluded, incl);
-        mpc_or(tio, yield, isDone, eq_c, isDone);
+        bitVecLevel[leftSibling] = leftSiblingIncluded;
+        bitVecLevel[rightSibling] = rightSiblingIncluded;
 
-        bitVecLevel[left] = leftIncluded;
-        bitVecLevel[right] = rightIncluded;
-
+        if(i == 1)
+        {
+            bitVecLevel[left] = incl;
+            bitVecLevel[right] = incl;
+        }
+        
         #ifdef SEGTREE_VERBOSE
-        value_t recons = mpc_reconstruct(tio, yield, valid);
+        // value_t recons = mpc_reconstruct(tio, yield, valid);
         auto leftIndRecons = mpc_reconstruct(tio, yield, left);
         auto rightIndRecons = mpc_reconstruct(tio, yield, right);
-        auto lIsIncluded = mpc_reconstruct(tio, yield, leftIncluded);
-        auto rIsIncluded = mpc_reconstruct(tio, yield, rightIncluded);
-        std::cout << "Level: " << level << " Left Node [" << leftIndRecons << "] (bitVec[ "<< ((1ULL << level) + leftIndRecons) << "]) isincluded: "  << lIsIncluded << " Right Node [" << rightIndRecons << "] (bitVec[" << ((1ULL << level) + rightIndRecons) << "]) isincluded: "  << rIsIncluded << " valid: " << recons << std::endl;
+        // auto leftSiblingIndRecons = mpc_reconstruct(tio, yield, leftSibling);
+        // auto rightSiblingIndRecons = mpc_reconstruct(tio, yield, rightSibling);
+        // auto lIsIncluded = mpc_reconstruct(tio, yield, bitVecLevel[left]);
+        // auto rIsIncluded = mpc_reconstruct(tio, yield, bitVecLevel[right]);
+        // auto lSiblingIncluded = mpc_reconstruct(tio, yield, bitVecLevel[leftSibling]);
+        // auto rSiblingIncluded = mpc_reconstruct(tio, yield, bitVecLevel[rightSibling]);
+        // auto isDoneRecon = mpc_reconstruct(tio, yield, isDone);
+        // auto isLleftchild = mpc_reconstruct(tio, yield, isL_leftchild);
+        // auto isRrightchild = mpc_reconstruct(tio, yield, isR_rightchild);
+        // std::cout << "Level: " << level << " Left Node [" << leftIndRecons << "] (bitVec[ "<< ((1ULL << level) + leftIndRecons) << "]) isincluded: "  << lIsIncluded << " Right Node [" << rightIndRecons << "] (bitVec[" << ((1ULL << level) + rightIndRecons) << "]) isincluded: "  << rIsIncluded << " valid: " << recons << std::endl;
+        std::cout << " Level: " << level << " [" << leftIndRecons << "," << rightIndRecons <<  "]" << std::endl;
+        // std::cout << " isDone: " << isDoneRecon << " valid: " << recons << std::endl;
+        // std::cout << " isLleftchild: " << isLleftchild << " isRrightchild: " << isRrightchild << std::endl;
+        // std::cout << " bitVec["<< ((1ULL << level) + leftIndRecons) << "] isincluded: "  << lIsIncluded << " bitVec[" << ((1ULL << level) + rightIndRecons) << "] isincluded: "  << rIsIncluded << std::endl;
+        // std::cout << " bitVec["<< ((1ULL << level) + leftSiblingIndRecons) << "] isincluded: "  << lSiblingIncluded << " bitVec[" << ((1ULL << level) + rightSiblingIndRecons) << "] isincluded: "  << rSiblingIncluded << std::endl;
+        // std::cout << " bitVec[2]: " << mpc_reconstruct(tio, yield, bitVecArray[2]) << std::endl;
         #endif
 
-        left = nextLLevel[left];
-        right = nextRLevel[right];
+        
+
+        left = leftParent;
+        right = rightParent;
     }
 }
 
@@ -181,9 +198,11 @@ void SegmentTree::RangeSum(MPCTIO &tio, yield_t & yield, RegAS left, RegAS right
     Duoram < RegXS > bitVec(tio.player(), num_items);
     getBitVector(tio, yield, bitVec, left, right);
 
-
+    
     auto bitVecArray = bitVec.flat(tio, yield);
     auto SegTreeArray = oram.flat(tio, yield);
+
+    
 
     RegAS sum;
     sum.set(0);
@@ -216,7 +235,6 @@ void SegmentTree::Update(MPCTIO &tio, yield_t & yield, RegAS index, RegAS value)
 
     RegAS index1 = index + disp;
 
-
     RegAS currVal = SegTreeArray[index1];
     RegAS diff = value - currVal;
 
@@ -233,16 +251,22 @@ void SegmentTree::Update(MPCTIO &tio, yield_t & yield, RegAS index, RegAS value)
     std::cout << "Diff = " << recons_diff << std::endl;
     #endif
 
-    SegTreeArray[index1] = value;
-    for(size_t i=1; i<=(depth-1); i++) {
-        RegAS parentIndex = parentArray[index1];
-        auto recons_parentIndex = mpc_reconstruct(tio, yield, parentIndex);
-        SegTreeArray[parentIndex] += diff;
+    // SegTreeArray[index1] = value;
+    for(size_t i=1; i<=depth; i++) {
+        size_t level = depth - i;
+        typename Duoram < RegAS > ::Flat parentLevel(parentArray, tio, yield, (1ULL << level), (1ULL << level)+1);
+        typename Duoram < RegAS > ::Flat segTreeLevel(SegTreeArray, tio, yield, (1ULL << level), (1ULL << level)+1);
+
+        segTreeLevel[index] += diff;
+        
         #ifdef SEGTREE_VERBOSE
-        auto recons_updatedParent = mpc_reconstruct(tio, yield, SegTreeArray[parentIndex]);
-        std::cout << "Updated Parent Index = " << recons_parentIndex << " with value = " << recons_updatedParent << std::endl;
+        auto recons_Index = mpc_reconstruct(tio, yield, index);
+        auto recons_updated = mpc_reconstruct(tio, yield, segTreeLevel[index]);
+        std::cout << "Updated Index = " << ((1ULL << (level-1)) + recons_Index) << " with value = " << recons_updated << std::endl;
         #endif
-        index1 = parentIndex;
+
+        RegAS parentIndex = parentLevel[index];
+        index = parentIndex;
     }
 }
 

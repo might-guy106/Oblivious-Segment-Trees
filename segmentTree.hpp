@@ -9,8 +9,7 @@ class SegmentTree {
     private:
         Duoram < RegAS > oram;
         Duoram < RegXS > isEven;
-        Duoram < RegAS > nextL;
-        Duoram < RegAS > nextR;
+        Duoram < RegAS > sibling;
         Duoram < RegAS > parent;
 
         void getBitVector(MPCTIO &tio, yield_t & yield, Duoram < RegXS > &bitVec, RegAS left, RegAS right);
@@ -18,7 +17,7 @@ class SegmentTree {
     public:
         size_t num_items;
         size_t depth;
-        SegmentTree(int player_num, size_t size, size_t d) : oram(player_num, size), isEven(player_num, size), nextL(player_num, size), nextR(player_num, size), parent(player_num, size) {
+        SegmentTree(int player_num, size_t size, size_t d) : oram(player_num, size), isEven(player_num, size), sibling(player_num, size), parent(player_num, size) {
             num_items = size;
             depth = d;
             std:: cout << "Segment Tree of depth " << depth << " with " << num_items << " nodes created" << std::endl;
