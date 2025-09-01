@@ -73,7 +73,7 @@ void SegmentTree::init(MPCTIO &tio, yield_t & yield) {
             return size_t(0);
         }
     });
-    // 0,1: 1, 2,3: 1, 3,4
+
     auto parentArray = parent.flat(tio, yield);
     parentArray.init([this] (size_t i) -> size_t {
         if (i >= 1 && i < num_items) {
@@ -119,9 +119,12 @@ void SegmentTree::getBitVector(MPCTIO &tio, yield_t & yield, Duoram < RegXS > &b
         typename Duoram < RegAS > ::Flat siblingLevel(siblingArray, tio, yield, (1ULL << level), (1ULL << level)+1);
         typename Duoram < RegAS > ::Flat parentLevel(parentArray, tio, yield, (1ULL << level), (1ULL << level)+1);
 
-        // if l and r are siblings it is already done before this iteration
         RegAS leftParent = parentLevel[left];
         RegAS rightParent = parentLevel[right];
+        RegAS leftSibling = siblingLevel[left]; 
+        RegAS rightSibling = siblingLevel[right];
+        
+        // if l and r are siblings it is already done before this iteration
         CDPF cdpf2 = tio.cdpf(yield);
         RegAS diff2 = leftParent - rightParent;
         auto[lt_c2, eq_c2, gt_c2] = cdpf2.compare(tio, yield, diff2, tio.aes_ops());
@@ -130,12 +133,9 @@ void SegmentTree::getBitVector(MPCTIO &tio, yield_t & yield, Duoram < RegXS > &b
         CDPF cdpf = tio.cdpf(yield);
         RegAS diff = right - left;
         auto[lt_c, eq_c, gt_c] = cdpf.compare(tio, yield, diff, tio.aes_ops());
-        
         RegBS valid;
         mpc_or(tio, yield, valid, eq_c, gt_c);  
 
-        RegAS leftSibling = siblingLevel[left]; 
-        RegAS rightSibling = siblingLevel[right];
 
         RegXS leftSiblingIncluded = bitVecLevel[leftSibling];
         RegXS rightSiblingIncluded = bitVecLevel[rightSibling];
@@ -147,14 +147,13 @@ void SegmentTree::getBitVector(MPCTIO &tio, yield_t & yield, Duoram < RegXS > &b
         RegXS isEvenR = isEvenLevel[right];
         RegBS isR_rightchild = one ^ isEvenR.bitat(0);
         mpc_select(tio, yield, rightSiblingIncluded, isR_rightchild, rightSiblingIncluded, incl);
-        
-        // checks if already done . if done then both left and right are 0
-        mpc_select(tio, yield, leftSiblingIncluded, isDone, leftSiblingIncluded, excl);
-        mpc_select(tio, yield, rightSiblingIncluded, isDone, rightSiblingIncluded, excl);
-        
-        // if not valid set left and right 0
-        mpc_select(tio, yield, leftSiblingIncluded, one ^ valid, leftSiblingIncluded, excl);
-        mpc_select(tio, yield, rightSiblingIncluded, one ^ valid, rightSiblingIncluded, excl);
+
+        // checks if not done and is valid
+        RegBS Check;
+        mpc_and(tio, yield, Check, one ^ isDone, valid);
+
+        mpc_select(tio, yield, leftSiblingIncluded, Check, excl, leftSiblingIncluded);
+        mpc_select(tio, yield, rightSiblingIncluded, Check, excl, rightSiblingIncluded);
 
         bitVecLevel[leftSibling] = leftSiblingIncluded;
         bitVecLevel[rightSibling] = rightSiblingIncluded;
@@ -186,8 +185,6 @@ void SegmentTree::getBitVector(MPCTIO &tio, yield_t & yield, Duoram < RegXS > &b
         // std::cout << " bitVec["<< ((1ULL << level) + leftSiblingIndRecons) << "] isincluded: "  << lSiblingIncluded << " bitVec[" << ((1ULL << level) + rightSiblingIndRecons) << "] isincluded: "  << rSiblingIncluded << std::endl;
         // std::cout << " bitVec[2]: " << mpc_reconstruct(tio, yield, bitVecArray[2]) << std::endl;
         #endif
-
-        
 
         left = leftParent;
         right = rightParent;
