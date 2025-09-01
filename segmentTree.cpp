@@ -7,7 +7,7 @@
 #include "shapes.hpp"
 #include "segmentTree.hpp"
 
-#define SEGTREE_VERBOSE
+// #define SEGTREE_VERBOSE
 
 /*  
     1 both parties have additive shares of l and r
@@ -137,8 +137,8 @@ void SegmentTree::getBitVector(MPCTIO &tio, yield_t & yield, Duoram < RegXS > &b
         mpc_or(tio, yield, valid, eq_c, gt_c);  
 
 
-        RegXS leftSiblingIncluded = bitVecLevel[leftSibling];
-        RegXS rightSiblingIncluded = bitVecLevel[rightSibling];
+        RegXS leftSiblingIncluded;
+        RegXS rightSiblingIncluded;
 
         RegXS isEvenL = isEvenLevel[left];
         RegBS isL_leftchild = isEvenL.bitat(0);
@@ -294,13 +294,17 @@ void SegTree(MPCIO &mpcio, const PRACOptions &opts, char **args) {
 
     MPCTIO tio(mpcio, 0, opts.num_cpu_threads);
 
-    run_coroutines(tio, [&tio, len, depth, n_updates, n_queries] (yield_t &yield) {
+    run_coroutines(tio, [&tio, &mpcio, len, depth, n_updates, n_queries] (yield_t &yield) {
+        
         SegmentTree segTree(tio.player(), len, depth);
         segTree.init(tio, yield);
-
-        std::cout << "===== Segment Tree Initialized =====" << std::endl;
+        std::cout << "===== Segment Tree Init Stats =====" << std::endl;
         std::cout << "Depth: " << depth << ", Size: " << len << std::endl;
         std::cout << "Updates: " << n_updates << ", Queries: " << n_queries << std::endl;
+        tio.sync_lamport();
+        mpcio.dump_stats(std::cout);
+        mpcio.reset_stats();
+        tio.reset_lamport();
 
         #ifdef SEGTREE_VERBOSE
         // Print initial segment tree
@@ -323,6 +327,12 @@ void SegTree(MPCIO &mpcio, const PRACOptions &opts, char **args) {
             segTree.Update(tio, yield, index, value);
             std::cout << "Update " << (u + 1) << " ends" << std::endl;
         }
+
+        std::cout << "===== Updates Stats =====" << std::endl;
+        tio.sync_lamport();
+        mpcio.dump_stats(std::cout);
+        mpcio.reset_stats();
+        tio.reset_lamport();
 
         #ifdef SEGTREE_VERBOSE
         // Print updated segment tree
@@ -352,5 +362,9 @@ void SegTree(MPCIO &mpcio, const PRACOptions &opts, char **args) {
             segTree.RangeSum(tio, yield, left_index, right_index);
             std::cout << "Range Sum Query " << (q + 1) << " ends" << std::endl;
         }
+
+        std::cout << "===== Range Sum Stats =====" << std::endl;
+        tio.sync_lamport();
+        mpcio.dump_stats(std::cout);
     });
 }
