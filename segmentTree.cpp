@@ -135,7 +135,9 @@ void SegmentTree::getBitVector(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, Duora
         RegAS rightParent = parentLevel[right];
         RegAS leftSibling = siblingLevel[left]; 
         RegAS rightSibling = siblingLevel[right];
-        STATS_POST("[SEGTREE][BITVEC] ORAM Reads (parents+siblings) Stats (level=" + std::to_string(level) + ")");
+        RegXS isEvenL = isEvenLevel[left];
+        RegXS isEvenR = isEvenLevel[right];
+        STATS_POST("[SEGTREE][BITVEC] ORAM Reads (parents+siblings+isEven) Stats (level=" + std::to_string(level) + ")");
 
         // --- CDPF compare for siblings ---
         STATS_PRE();
@@ -170,13 +172,6 @@ void SegmentTree::getBitVector(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, Duora
         
         STATS_POST("[SEGTREE][BITVEC] mpc_or (valid) Stats (level=" + std::to_string(level) + ")");
 
-        // --- isEven read (left) ---
-        STATS_PRE();
-        
-        RegXS isEvenL = isEvenLevel[left];
-        
-        STATS_POST("[SEGTREE][BITVEC] isEven Read (left) Stats (level=" + std::to_string(level) + ")");
-
         // --- mpc_select for leftSiblingIncluded ---
         STATS_PRE();
         
@@ -185,13 +180,6 @@ void SegmentTree::getBitVector(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, Duora
         mpc_select(tio, yield, leftSiblingIncluded, isL_leftchild, leftSiblingIncluded, incl);
         
         STATS_POST("[SEGTREE][BITVEC] mpc_select (leftSiblingIncluded) Stats (level=" + std::to_string(level) + ")");
-
-        // --- isEven read (right) ---
-        STATS_PRE();
-        
-        RegXS isEvenR = isEvenLevel[right];
-        
-        STATS_POST("[SEGTREE][BITVEC] isEven Read (right) Stats (level=" + std::to_string(level) + ")");
 
         // --- mpc_select for rightSiblingIncluded ---
         STATS_PRE();
