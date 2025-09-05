@@ -248,7 +248,6 @@ void SegmentTree::Update(MPCTIO &tio, yield_t & yield, RegAS index, RegAS value)
     std::cout << "Diff = " << recons_diff << std::endl;
     #endif
 
-    // SegTreeArray[index1] = value;
     for(size_t i=1; i<=depth; i++) {
         size_t level = depth - i;
         typename Duoram < RegAS > ::Flat parentLevel(parentArray, tio, yield, (1ULL << level), (1ULL << level)+1);
@@ -364,7 +363,5 @@ void SegTree(MPCIO &mpcio, const PRACOptions &opts, char **args) {
         }
 
         std::cout << "===== Range Sum Stats =====" << std::endl;
-        tio.sync_lamport();
-        mpcio.dump_stats(std::cout);
     });
 }
