@@ -7,7 +7,7 @@
 #include "shapes.hpp"
 #include "segmentTree.hpp"
 
-// #define SEGTREE_VERBOSE
+#define SEGTREE_VERBOSE
 // To enable timing/stat instrumentation define SEGTREE_VERBOSE2
 // #define SEGTREE_VERBOSE2
 
@@ -428,8 +428,11 @@ void SegTree(MPCIO &mpcio, const PRACOptions &opts, char **args) {
 
             // Ensure left < right for valid range queries
             size_t max_leaf_idx = (1 << (depth - 1)) - 1;
+            std::cout << "max_leaf_idx: " << max_leaf_idx << std::endl;
             size_t left_val = q % (1 << (depth - 1));  // Start anywhere in valid range
-            size_t right_val = left_val + (q % (max_leaf_idx - left_val)); // Ensuring right > left
+            std::cout << "left_val: " << left_val << std::endl;
+            size_t right_val = left_val + (q % (max_leaf_idx + 1 - left_val)); // Ensuring right > left
+            std::cout << "right_val: " << right_val << std::endl;
 
             left_index.set(tio.player() == 0 ? left_val : 0); // Start of range
             right_index.set(tio.player() == 0 ? right_val : 0); // End of range
