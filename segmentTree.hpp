@@ -12,7 +12,7 @@ class SegmentTree {
         Duoram < RegAS > sibling;
         Duoram < RegAS > parent;
 
-        void getBitVector(MPCTIO &tio, yield_t & yield, Duoram < RegXS > &bitVec, RegAS left, RegAS right);
+    void getBitVector(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, Duoram < RegXS > &bitVec, RegAS left, RegAS right);
 
     public:
         size_t num_items;
@@ -25,8 +25,9 @@ class SegmentTree {
 
         void init(MPCTIO &tio, yield_t & yield);
 
-        void RangeSum(MPCTIO &tio, yield_t & yield, RegAS left, RegAS right);
-        void Update(MPCTIO &tio, yield_t & yield, RegAS index, RegAS value);
+    void RangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS left, RegAS right);
+    // Instrumented Update: measures (1) leaf read, (2) per-level update write, (3) parent index read timings/resources
+    void Update(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS index, RegAS value);
         void printSegmentTree(MPCTIO &tio, yield_t & yield);
 
 };

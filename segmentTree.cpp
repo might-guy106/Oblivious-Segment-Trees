@@ -92,7 +92,7 @@ void SegmentTree::printSegmentTree(MPCTIO &tio, yield_t & yield) {
     }
 }
 
-void SegmentTree::getBitVector(MPCTIO &tio, yield_t & yield, Duoram < RegXS > &bitVec, RegAS left, RegAS right) {
+void SegmentTree::getBitVector(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, Duoram < RegXS > &bitVec, RegAS left, RegAS right) {
 
     auto bitVecArray = bitVec.flat(tio, yield);
     auto isEvenArray = isEven.flat(tio, yield);
@@ -107,10 +107,10 @@ void SegmentTree::getBitVector(MPCTIO &tio, yield_t & yield, Duoram < RegXS > &b
     excl.set(0);
     RegBS isDone;
     isDone.set(0);
-    RegBS zero;
-    zero.set(0);
     RegBS one;
     one.set(tio.player()==0 ? 1 : 0);
+    RegBS zero;
+    zero.set(0);
     for(uint32_t i=1; i<=height; i++)
     {
         uint32_t level = height - i;
@@ -123,37 +123,81 @@ void SegmentTree::getBitVector(MPCTIO &tio, yield_t & yield, Duoram < RegXS > &b
         RegAS rightParent = parentLevel[right];
         RegAS leftSibling = siblingLevel[left]; 
         RegAS rightSibling = siblingLevel[right];
-        
-        // if l and r are siblings it is already done before this iteration
+
+        // --- CDPF compare for siblings ---
+        tio.sync_lamport(); mpcio.reset_stats(); tio.reset_lamport();
         CDPF cdpf2 = tio.cdpf(yield);
         RegAS diff2 = leftParent - rightParent;
         auto[lt_c2, eq_c2, gt_c2] = cdpf2.compare(tio, yield, diff2, tio.aes_ops());
+        tio.sync_lamport();
+        std::cout << "[SEGTREE][BITVEC] cdpf2.compare (siblings) Stats (level=" << level << ")" << std::endl;
+        mpcio.dump_stats(std::cout); mpcio.reset_stats(); tio.reset_lamport();
+
+        // --- mpc_or for isDone ---
+        tio.sync_lamport(); mpcio.reset_stats(); tio.reset_lamport();
         mpc_or(tio, yield, isDone, eq_c2, isDone);
-        
+        tio.sync_lamport();
+        std::cout << "[SEGTREE][BITVEC] mpc_or (isDone) Stats (level=" << level << ")" << std::endl;
+        mpcio.dump_stats(std::cout); mpcio.reset_stats(); tio.reset_lamport();
+
+        // --- CDPF compare for range ---
+        tio.sync_lamport(); mpcio.reset_stats(); tio.reset_lamport();
         CDPF cdpf = tio.cdpf(yield);
         RegAS diff = right - left;
         auto[lt_c, eq_c, gt_c] = cdpf.compare(tio, yield, diff, tio.aes_ops());
+        tio.sync_lamport();
+        std::cout << "[SEGTREE][BITVEC] cdpf.compare (range) Stats (level=" << level << ")" << std::endl;
+        mpcio.dump_stats(std::cout); mpcio.reset_stats(); tio.reset_lamport();
+
+        // --- mpc_or for valid ---
+        tio.sync_lamport(); mpcio.reset_stats(); tio.reset_lamport();
         RegBS valid;
-        mpc_or(tio, yield, valid, eq_c, gt_c);  
+        mpc_or(tio, yield, valid, eq_c, gt_c);
+        tio.sync_lamport();
+        std::cout << "[SEGTREE][BITVEC] mpc_or (valid) Stats (level=" << level << ")" << std::endl;
+        mpcio.dump_stats(std::cout); mpcio.reset_stats(); tio.reset_lamport();
 
-
+        // --- mpc_select for leftSiblingIncluded ---
+        tio.sync_lamport(); mpcio.reset_stats(); tio.reset_lamport();
         RegXS leftSiblingIncluded;
-        RegXS rightSiblingIncluded;
-
         RegXS isEvenL = isEvenLevel[left];
         RegBS isL_leftchild = isEvenL.bitat(0);
         mpc_select(tio, yield, leftSiblingIncluded, isL_leftchild, leftSiblingIncluded, incl);
-        
+        tio.sync_lamport();
+        std::cout << "[SEGTREE][BITVEC] mpc_select (leftSiblingIncluded) Stats (level=" << level << ")" << std::endl;
+        mpcio.dump_stats(std::cout); mpcio.reset_stats(); tio.reset_lamport();
+
+        // --- mpc_select for rightSiblingIncluded ---
+        tio.sync_lamport(); mpcio.reset_stats(); tio.reset_lamport();
+        RegXS rightSiblingIncluded;
         RegXS isEvenR = isEvenLevel[right];
         RegBS isR_rightchild = one ^ isEvenR.bitat(0);
         mpc_select(tio, yield, rightSiblingIncluded, isR_rightchild, rightSiblingIncluded, incl);
+        tio.sync_lamport();
+        std::cout << "[SEGTREE][BITVEC] mpc_select (rightSiblingIncluded) Stats (level=" << level << ")" << std::endl;
+        mpcio.dump_stats(std::cout); mpcio.reset_stats(); tio.reset_lamport();
 
-        // checks if not done and is valid
+        // --- mpc_and for Check ---
+        tio.sync_lamport(); mpcio.reset_stats(); tio.reset_lamport();
         RegBS Check;
         mpc_and(tio, yield, Check, one ^ isDone, valid);
+        tio.sync_lamport();
+        std::cout << "[SEGTREE][BITVEC] mpc_and (Check) Stats (level=" << level << ")" << std::endl;
+        mpcio.dump_stats(std::cout); mpcio.reset_stats(); tio.reset_lamport();
 
+        // --- mpc_select for leftSiblingIncluded (Check) ---
+        tio.sync_lamport(); mpcio.reset_stats(); tio.reset_lamport();
         mpc_select(tio, yield, leftSiblingIncluded, Check, excl, leftSiblingIncluded);
+        tio.sync_lamport();
+        std::cout << "[SEGTREE][BITVEC] mpc_select (leftSiblingIncluded, Check) Stats (level=" << level << ")" << std::endl;
+        mpcio.dump_stats(std::cout); mpcio.reset_stats(); tio.reset_lamport();
+
+        // --- mpc_select for rightSiblingIncluded (Check) ---
+        tio.sync_lamport(); mpcio.reset_stats(); tio.reset_lamport();
         mpc_select(tio, yield, rightSiblingIncluded, Check, excl, rightSiblingIncluded);
+        tio.sync_lamport();
+        std::cout << "[SEGTREE][BITVEC] mpc_select (rightSiblingIncluded, Check) Stats (level=" << level << ")" << std::endl;
+        mpcio.dump_stats(std::cout); mpcio.reset_stats(); tio.reset_lamport();
 
         bitVecLevel[leftSibling] = leftSiblingIncluded;
         bitVecLevel[rightSibling] = rightSiblingIncluded;
@@ -191,19 +235,20 @@ void SegmentTree::getBitVector(MPCTIO &tio, yield_t & yield, Duoram < RegXS > &b
     }
 }
 
-void SegmentTree::RangeSum(MPCTIO &tio, yield_t & yield, RegAS left, RegAS right) {
+void SegmentTree::RangeSum(MPCTIO &tio,  MPCIO &mpcio, yield_t & yield, RegAS left, RegAS right) {
     Duoram < RegXS > bitVec(tio.player(), num_items);
-    getBitVector(tio, yield, bitVec, left, right);
+    getBitVector(tio, mpcio, yield, bitVec, left, right);
 
-    
     auto bitVecArray = bitVec.flat(tio, yield);
     auto SegTreeArray = oram.flat(tio, yield);
-
-    
 
     RegAS sum;
     sum.set(0);
 
+    // --- Measure: RangeSum accumulation loop ---
+    tio.sync_lamport();
+    mpcio.reset_stats();
+    tio.reset_lamport();
     for(size_t i=1; i<num_items; i++) {
         RegXS element = bitVecArray[i];
         RegBS incl = element.bitat(0);
@@ -216,6 +261,11 @@ void SegmentTree::RangeSum(MPCTIO &tio, yield_t & yield, RegAS left, RegAS right
 
         sum.ashare += sum1.ashare;
     }
+    tio.sync_lamport();
+    std::cout << "[SEGTREE][RANGESUM] Accumulation Loop Stats" << std::endl;
+    mpcio.dump_stats(std::cout);
+    mpcio.reset_stats();
+    tio.reset_lamport();
 
     #ifdef SEGTREE_VERBOSE
     value_t answer = mpc_reconstruct(tio, yield, sum);
@@ -223,7 +273,7 @@ void SegmentTree::RangeSum(MPCTIO &tio, yield_t & yield, RegAS left, RegAS right
     #endif
 }
 
-void SegmentTree::Update(MPCTIO &tio, yield_t & yield, RegAS index, RegAS value) {
+void SegmentTree::Update(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS index, RegAS value) {
     auto SegTreeArray = oram.flat(tio, yield);
     auto parentArray = parent.flat(tio, yield);
 
@@ -232,7 +282,16 @@ void SegmentTree::Update(MPCTIO &tio, yield_t & yield, RegAS index, RegAS value)
 
     RegAS index1 = index + disp;
 
+    // --- Measure: Leaf access (read current value) ---
+    tio.sync_lamport();
+    mpcio.reset_stats(); // ensure clean slate for this micro-op
+    tio.reset_lamport();
     RegAS currVal = SegTreeArray[index1];
+    tio.sync_lamport();
+    std::cout << "[SEGTREE][UPDATE] Leaf Read Stats (SegTreeArray[index1])" << std::endl;
+    mpcio.dump_stats(std::cout);
+    mpcio.reset_stats();
+    tio.reset_lamport();
     RegAS diff = value - currVal;
 
     #ifdef SEGTREE_VERBOSE
@@ -252,16 +311,34 @@ void SegmentTree::Update(MPCTIO &tio, yield_t & yield, RegAS index, RegAS value)
         size_t level = depth - i;
         typename Duoram < RegAS > ::Flat parentLevel(parentArray, tio, yield, (1ULL << level), (1ULL << level)+1);
         typename Duoram < RegAS > ::Flat segTreeLevel(SegTreeArray, tio, yield, (1ULL << level), (1ULL << level)+1);
-
+        // --- Measure: Per-level update write (segTreeLevel[index] += diff) ---
+        tio.sync_lamport();
+        mpcio.reset_stats();
+        tio.reset_lamport();
         segTreeLevel[index] += diff;
+        tio.sync_lamport();
+        std::cout << "[SEGTREE][UPDATE] Level Update Stats (level=" << level << ") segTreeLevel[index] += diff" << std::endl;
+        mpcio.dump_stats(std::cout);
+        mpcio.reset_stats();
+        tio.reset_lamport();
         
         #ifdef SEGTREE_VERBOSE
         auto recons_Index = mpc_reconstruct(tio, yield, index);
         auto recons_updated = mpc_reconstruct(tio, yield, segTreeLevel[index]);
-        std::cout << "Updated Index = " << ((1ULL << (level-1)) + recons_Index) << " with value = " << recons_updated << std::endl;
+        std::cout << "Updated Index = " << ((1ULL << (level)) + recons_Index) << " with value = " << recons_updated << std::endl;
         #endif
 
+    // --- Measure: Parent access (parentLevel[index]) ---
+        tio.sync_lamport();
+        mpcio.reset_stats();
+        tio.reset_lamport();
         RegAS parentIndex = parentLevel[index];
+        tio.sync_lamport();
+        std::cout << "[SEGTREE][UPDATE] Parent Read Stats (level=" << level << ") parentLevel[index]" << std::endl;
+        mpcio.dump_stats(std::cout);
+        mpcio.reset_stats();
+        tio.reset_lamport();
+
         index = parentIndex;
     }
 }
@@ -323,7 +400,7 @@ void SegTree(MPCIO &mpcio, const PRACOptions &opts, char **args) {
             size_t val_to_set = (u + 1) * 50;
             value.set(tio.player() == 0 ? val_to_set : 0); // Use different values for each update
 
-            segTree.Update(tio, yield, index, value);
+            segTree.Update(tio, mpcio, yield, index, value);
             std::cout << "Update " << (u + 1) << " ends" << std::endl;
         }
 
@@ -358,7 +435,7 @@ void SegTree(MPCIO &mpcio, const PRACOptions &opts, char **args) {
             std::cout << "Range Sum Query [" << recons_left << ", " << recons_right << "]" << std::endl;
             #endif
 
-            segTree.RangeSum(tio, yield, left_index, right_index);
+            segTree.RangeSum(tio, mpcio, yield, left_index, right_index);
             std::cout << "Range Sum Query " << (q + 1) << " ends" << std::endl;
         }
 
