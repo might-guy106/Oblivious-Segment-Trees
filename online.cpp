@@ -12,6 +12,7 @@
 #include "avl.hpp"
 #include "heapsampler.hpp"
 #include "segmentTree.hpp"
+#include "segmentTree2.hpp"
 
 static void online_test(MPCIO &mpcio,
     const PRACOptions &opts, char **args)
@@ -1709,6 +1710,9 @@ void online_main(MPCIO &mpcio, const PRACOptions &opts, char **args)
     } else if (!strcmp(*args, "segmenttree")) {
         ++args;
         SegTree(mpcio, opts, args);
+    } else if (!strcmp(*args, "segmenttree2")) {
+        ++args;
+        SegTree2(mpcio, opts, args);
     } else {
         std::cerr << "Unknown mode " << *args << "\n";
     }
