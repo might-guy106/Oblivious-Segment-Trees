@@ -14,6 +14,7 @@
 #include "segmentTree.hpp"
 #include "segmentTree2.hpp"
 #include "segmentTree3.hpp"
+#include "segmentTree4.hpp"
 
 static void online_test(MPCIO &mpcio,
     const PRACOptions &opts, char **args)
@@ -1717,6 +1718,9 @@ void online_main(MPCIO &mpcio, const PRACOptions &opts, char **args)
     } else if (!strcmp(*args, "segmenttree3")) {
         ++args;
         SegTree3(mpcio, opts, args);
+    } else if (!strcmp(*args, "segmenttree4")) {
+        ++args;
+        SegTree4(mpcio, opts, args);
     } else {
         std::cerr << "Unknown mode " << *args << "\n";
     }

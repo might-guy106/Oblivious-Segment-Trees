@@ -304,28 +304,30 @@ void SegmentTree3::Update(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS inde
     std::cout << "Diff = " << recons_diff << std::endl;
     #endif
 
-    for(size_t i=1; i<=depth; i++) {
+    SegTreeArray[indexSegArr] += diff;
+    for(size_t i=1; i<=depth-1; i++) {
         size_t level = depth - i;
         #ifndef SEGTREE_VERBOSE2
             (void)level;
-        #endif
-        // --- Measure: Per-level update write (SegTreeArray[index] += diff) ---
-        STATS_PRE();
-        SegTreeArray[indexSegArr] += diff;
-        STATS_POST("[SEGTREE][UPDATE] Level Update Stats (level=" + std::to_string(level) + ") SegTreeArray[index] += diff");
-        
-        #ifdef SEGTREE_VERBOSE
-        auto recons_Index = mpc_reconstruct(tio, yield, indexSegArr);
-        auto recons_updated = mpc_reconstruct(tio, yield, SegTreeArray[indexSegArr]);
-        std::cout << "Updated Index = " << (recons_Index) << " with value = " << recons_updated << std::endl;
         #endif
 
         // --- Measure: Parent access (parentLevel[index]) ---
         STATS_PRE();
         RegAS parentIndex = parentArray[indexSegArr];
         STATS_POST("[SEGTREE][UPDATE] Parent Read Stats (level=" + std::to_string(level) + ") parentLevel[index]");
-
+        
+        // --- Measure: Per-level update write (SegTreeArray[index] += diff) ---
+        STATS_PRE();
+        SegTreeArray[parentIndex] += diff;
+        STATS_POST("[SEGTREE][UPDATE] Level Update Stats (level=" + std::to_string(level) + ") SegTreeArray[index] += diff");
+        
         indexSegArr = parentIndex;
+
+        #ifdef SEGTREE_VERBOSE
+        auto recons_Index = mpc_reconstruct(tio, yield, indexSegArr);
+        auto recons_updated = mpc_reconstruct(tio, yield, SegTreeArray[indexSegArr]);
+        std::cout << "Updated Index = " << (recons_Index) << " with value = " << recons_updated << std::endl;
+        #endif
     }
 }
 
