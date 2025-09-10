@@ -18,6 +18,7 @@
 #include "segmentTree5.hpp"
 #include "segmentTree6.hpp"
 #include "segmentTreeClean.hpp"
+#include "testing.hpp"
 
 static void online_test(MPCIO &mpcio,
     const PRACOptions &opts, char **args)
@@ -1734,6 +1735,10 @@ void online_main(MPCIO &mpcio, const PRACOptions &opts, char **args)
     } else if (!strcmp(*args, "segmenttreeClean")) {
         ++args;
         SegTreeClean(mpcio, opts, args);
+    }
+    else if (!strcmp(*args, "testsegtree")) {
+        ++args;
+        SegTreeTest(mpcio, opts, args);
     }
     else {
         std::cerr << "Unknown mode " << *args << "\n";
