@@ -8,7 +8,7 @@
 #include "segmentTree3.hpp"
 
 // uncomment to enable intermediate reconstructions and logging
-#define SEGTREE_VERBOSE
+// #define SEGTREE_VERBOSE
 
 /*
 The segment tree data structure is stored in an array using a standard binary tree layout with starting index as 1 (and not 0).
@@ -220,14 +220,13 @@ void SegmentTree3::getBitVector(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, Duor
     
     // Process each level from leaves to root
     for(uint32_t i=1; i<=height; i++) {
-        uint32_t level = height - i;  // current level being processed
-
+        
         // Read parent indices and conditional sibling indices
         RegAS leftParent = parentArray[left];
         RegAS rightParent = parentArray[right];
         RegAS leftSibling = leftChildSiblingArray[left];   // 0 if left not a left child
         RegAS rightSibling = rightChildSiblingArray[right]; // 0 if right not a right child
-
+        
         // Check if range endpoints have converged (same parent)
         CDPF cdpf2 = tio.cdpf(yield);
         RegAS diff2 = leftParent - rightParent;
@@ -235,7 +234,7 @@ void SegmentTree3::getBitVector(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, Duor
         
         // Update isDone flag if parents are equal
         mpc_or(tio, yield, isDone, eq_c2, isDone);
-
+        
         // Check if we have a valid range (right >= left)
         CDPF cdpf = tio.cdpf(yield);
         RegAS diff = right - left;
@@ -244,13 +243,13 @@ void SegmentTree3::getBitVector(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, Duor
         // Range is valid if right >= left
         RegBS valid;
         mpc_or(tio, yield, valid, eq_c, gt_c);
-
+        
         // Initialize sibling inclusion variables
         RegXS leftSiblingIncluded;  // will become 'incl' if Check passes later
         leftSiblingIncluded.set(0);
         RegXS rightSiblingIncluded;
         rightSiblingIncluded.set(0);
-
+        
         // Check if we should include siblings: range is valid and not done
         RegBS Check;
         mpc_and(tio, yield, Check, one ^ isDone, valid);
@@ -260,11 +259,11 @@ void SegmentTree3::getBitVector(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, Duor
         
         // Conditionally include right sibling if check passes
         mpc_select(tio, yield, rightSiblingIncluded, Check, rightSiblingIncluded, incl);
-
+        
         // Set bit vector entries for siblings
         bitVecArray[leftSibling] = leftSiblingIncluded;
         bitVecArray[rightSibling] = rightSiblingIncluded;
-
+        
         // For the first iteration (leaf level), include the range endpoints
         if(i == 1) {
             bitVecArray[left] = incl;
@@ -272,6 +271,7 @@ void SegmentTree3::getBitVector(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, Duor
         }
         
         #ifdef SEGTREE_VERBOSE
+        uint32_t level = height - i;  // current level being processed
         auto leftIndRecons = mpc_reconstruct(tio, yield, left);
         auto rightIndRecons = mpc_reconstruct(tio, yield, right);
         std::cout << " Level: " << level << " [" << leftIndRecons << "," << rightIndRecons <<  "]" << std::endl;
@@ -359,8 +359,6 @@ void SegmentTree3::Update(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS inde
     
     // Propagate the difference up the tree to all ancestors
     for(size_t i=1; i<=depth-1; i++) {
-        size_t level = depth - i;
-
         // Get parent index and update it
         RegAS parentIndex = parentArray[indexSegArr];
         SegTreeArray[parentIndex] += diff;

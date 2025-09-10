@@ -8,7 +8,7 @@
 #include "segmentTree6.hpp"
 
 // uncomment to enable intermediate reconstructions and logging
-#define SEGTREE_VERBOSE
+// #define SEGTREE_VERBOSE
 
 /*
 The segment tree data structure in SegmentTree6 uses a LEVEL-WISE RESTRUCTURED ARRAY layout 
