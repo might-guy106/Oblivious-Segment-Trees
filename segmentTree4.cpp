@@ -81,7 +81,7 @@ void SegmentTree4::init(MPCTIO &tio, yield_t & yield) {
     auto parentArray = parent.flat(tio, yield);
     parentArray.init([this] (size_t i) -> size_t {
         if (i >= 1 && i < num_items) {
-            return i / 2;
+            return arrayIndexToLevelPos4(i / 2);
         } else {
             return size_t(0);
         }
@@ -124,26 +124,27 @@ void SegmentTree4::getBitVector(MPCTIO &tio, yield_t & yield, Duoram < RegXS > &
         typename Duoram < RegAS > ::Flat nextLLevel(nextLArray, tio, yield, (1ULL << level), (1ULL << level)+1);
         typename Duoram < RegAS > ::Flat nextRLevel(nextRArray, tio, yield, (1ULL << level), (1ULL << level)+1);
 
+        // --- ORAM base reads
+        RegXS isEvenL = isEvenLevel[left];
+        RegXS isEvenR = isEvenLevel[right];
+        RegAS nextLVal = nextLLevel[left];
+        RegAS nextRVal = nextRLevel[right];
+        
         CDPF cdpf = tio.cdpf(yield);
         RegAS diff = right - left;
         auto[lt_c, eq_c, gt_c] = cdpf.compare(tio, yield, diff, tio.aes_ops());
-
-        RegXS leftIncluded = bitVecLevel[left];
-        RegXS rightIncluded = bitVecLevel[right];
-
+        
         RegBS valid;
         mpc_or(tio, yield, valid, eq_c, gt_c);
         mpc_or(tio, yield, isDone, valid ^ one, isDone);
-
-
-
-        RegXS isEvenL = isEvenLevel[left];
+        
+        RegXS leftIncluded;
         RegBS inclusionL = isEvenL.bitat(0);
         RegBS f;
         mpc_and(tio, yield, f, valid, (inclusionL ^ one));
         mpc_select(tio, yield, leftIncluded, f, excl, incl);
-
-        RegXS isEvenR = isEvenLevel[right];
+        
+        RegXS rightIncluded;
         RegBS inclusionR = isEvenR.bitat(0);
         RegBS g;
         mpc_and(tio, yield, g, valid, inclusionR);
@@ -172,8 +173,8 @@ void SegmentTree4::getBitVector(MPCTIO &tio, yield_t & yield, Duoram < RegXS > &
         std::cout << "Level: " << level << " Left Node [" << leftIndRecons << "] (bitVec[ "<< ((1ULL << level) + leftIndRecons) << "]) isincluded: "  << lIsIncluded << " Right Node [" << rightIndRecons << "] (bitVec[" << ((1ULL << level) + rightIndRecons) << "]) isincluded: "  << rIsIncluded << " valid: " << recons << std::endl;
         #endif
 
-        left = nextLLevel[left];
-        right = nextRLevel[right];
+        left = nextLVal;
+        right = nextRVal;
     }
 }
 
@@ -211,39 +212,37 @@ void SegmentTree4::Update(MPCTIO &tio, yield_t & yield, RegAS index, RegAS value
     auto SegTreeArray = oram.flat(tio, yield);
     auto parentArray = parent.flat(tio, yield);
 
-    RegAS disp;
-    disp.set(tio.player() == 0 ? (1 << (depth - 1)) : 0);
+    size_t leafLevel = depth - 1;
+    typename Duoram<RegAS>::Flat leafLevel_flat(SegTreeArray, tio, yield, (1ULL << leafLevel), (1ULL << leafLevel)+1);
 
-    RegAS index1 = index + disp;
-
-
-    RegAS currVal = SegTreeArray[index1];
+    RegAS currVal = leafLevel_flat[index];
     RegAS diff = value - currVal;
 
     #ifdef SEGTREE_VERBOSE
     auto recons_index = mpc_reconstruct(tio, yield, index);
-    auto recons_index1 = mpc_reconstruct(tio, yield, index1);
     auto recons_currVal = mpc_reconstruct(tio, yield, currVal);
     auto recons_newvalue = mpc_reconstruct(tio, yield, value);
     auto recons_diff = mpc_reconstruct(tio, yield, diff);
     std::cout << "Index to be updated in the original array = " << recons_index << std::endl;
-    std::cout << "Index to be updated in the segment tree array = " << recons_index1 << std::endl;
     std::cout << "Current Value at index = " << recons_currVal << std::endl;
     std::cout << "New Value to be updated = " << recons_newvalue << std::endl;
     std::cout << "Diff = " << recons_diff << std::endl;
     #endif
 
-    SegTreeArray[index1] = value;
-    for(size_t i=1; i<=(depth-1); i++) {
-        RegAS parentIndex = parentArray[index1];
-        SegTreeArray[parentIndex] += diff;
-        
+    for(size_t i = 1; i <= depth; i++) {
+        size_t level = depth - i;
+        typename Duoram < RegAS > ::Flat parentLevel(parentArray, tio, yield, (1ULL << level), (1ULL << level)+1);
+        typename Duoram < RegAS > ::Flat segTreeLevel(SegTreeArray, tio, yield, (1ULL << level), (1ULL << level)+1);
+    
+        segTreeLevel[index] += diff;
+        index = parentLevel[index];
+
+        // Debugging and intermediate reconstructions
         #ifdef SEGTREE_VERBOSE
-        auto recons_parentIndex = mpc_reconstruct(tio, yield, parentIndex);
-        auto recons_updatedParent = mpc_reconstruct(tio, yield, SegTreeArray[parentIndex]);
-        std::cout << "Updated Parent Index = " << recons_parentIndex << " with value = " << recons_updatedParent << std::endl;
+        auto recons_Index = mpc_reconstruct(tio, yield, index);
+        auto recons_updated = mpc_reconstruct(tio, yield, segTreeLevel[index]);
+        std::cout << "Updated Index = " << ((1ULL << (level)) + recons_Index) << " with value = " << recons_updated << std::endl;
         #endif
-        index1 = parentIndex;
     }
 }
 
@@ -296,7 +295,7 @@ void SegTree4(MPCIO &mpcio, const PRACOptions &opts, char **args) {
         for (size_t u = 0; u < n_updates; ++u) {
             std::cout << "\n===== Update " << (u + 1) << " begins =====" << std::endl;
             RegAS index;
-            size_t idx_val = u % (1 << (depth - 1));
+            size_t idx_val = u % (1 << (depth - 1)); // 0 to 2^(depth-1)-1
             index.set(tio.player() == 0 ? idx_val : 0); // Cycle through leaf indices
 
 
