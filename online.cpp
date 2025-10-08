@@ -17,6 +17,7 @@
 #include "segmentTree4.hpp"
 #include "segmentTree5.hpp"
 #include "segmentTree6.hpp"
+#include "segmentTree7.hpp"
 #include "segmentTreeClean.hpp"
 
 static void online_test(MPCIO &mpcio,
@@ -1731,6 +1732,9 @@ void online_main(MPCIO &mpcio, const PRACOptions &opts, char **args)
         ++args;
         SegTree6(mpcio, opts, args);
 
+    } else if (!strcmp(*args, "segmenttree7")) {
+        ++args;
+        SegTree7(mpcio, opts, args);
     } else if (!strcmp(*args, "segmenttreeClean")) {
         ++args;
         SegTreeClean(mpcio, opts, args);
