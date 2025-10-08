@@ -267,8 +267,8 @@ void SegmentTree7::getBitVector(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, Duor
     auto rightChildSiblingArray = rightChildSibling.flat(tio, yield);
     auto parentArray = parent.flat(tio, yield);
 
-    RegXS incl;
-    incl.set(tio.player()==0 ? 1 : 0);
+    // RegXS incl;
+    // incl.set(tio.player()==0 ? 1 : 0);
 
     RegBS isValid; // isValid = right >= left
     CDPF cdpf = tio.cdpf(yield);
@@ -303,12 +303,18 @@ void SegmentTree7::getBitVector(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, Duor
     for(uint32_t i = 1; i <= depth; i++) {
         size_t level = depth - i;
 
-        read_coroutines.emplace_back([&tio, &yield, level, i, incl, this, &isValid, &leftPath, &rightPath, &bitVecArray, 
+        read_coroutines.emplace_back([&tio, level, i, this, &isValid, &leftPath, &rightPath, &bitVecArray, 
                                     &leftChildSiblingArray, &rightChildSiblingArray, &parentArray](yield_t &sub_yield) {
             size_t levelStart = getLevelStart7(level);
             size_t levelLength = getLevelLength7(level);
             
-            typename Duoram < RegXS > ::Flat bitVecLevel(bitVecArray, tio, yield, levelStart, levelLength);
+            // Create incl fresh in each coroutine to avoid sharing issues
+            RegXS incl;
+            incl.set(tio.player()==0 ? 1 : 0);
+            RegAS one;
+            one.set(tio.player()==0 ? 1 : 0);
+            
+            typename Duoram < RegXS > ::Flat bitVecLevel(bitVecArray, tio, sub_yield, levelStart, levelLength);
             typename Duoram < RegAS > ::Flat leftChildSiblingLevel(leftChildSiblingArray, tio, sub_yield, levelStart, levelLength);
             typename Duoram < RegAS > ::Flat rightChildSiblingLevel(rightChildSiblingArray, tio, sub_yield, levelStart, levelLength);
             typename Duoram < RegAS > ::Flat parentLevel(parentArray, tio, sub_yield, levelStart, levelLength);
@@ -319,21 +325,19 @@ void SegmentTree7::getBitVector(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, Duor
 
             // --- if left and right are adjacent or same then the marking of bitvector is already completed so we set isDone here ---
             RegBS isNotDone;
-            if(level > 0) {
-                CDPF cdpf1 = tio.cdpf(yield);
-                RegAS diff1 = leftPath[level] - rightPath[level];
-                auto[lt_c1, eq_c1, gt_c1] = cdpf1.compare(tio, yield, diff1, tio.aes_ops());
-                isNotDone = gt_c1; // isNotDone = left < right
-            }
+            CDPF cdpf1 = tio.cdpf(sub_yield);
+            RegAS diff1 = rightPath[level] - (leftPath[level] + one); // diff1 = right - (left + 1)
+            auto[lt_c1, eq_c1, gt_c1] = cdpf1.compare(tio, sub_yield, diff1, tio.aes_ops());
+            isNotDone = gt_c1; // isNotDone = (right > left + 1)
 
             // --- initialize leftSiblingIncluded and rightSiblingIncluded (contains 0 initially) ---
             RegXS leftSiblingIncluded, rightSiblingIncluded; // will become 'incl' if Check passes later
 
             // --- we have to mark the leftSibling and rightSibling only if marking is not yet completed and initial query is valid ---
             RegBS Check;
-            mpc_and(tio, yield, Check, isNotDone, isValid); // Check = isNotDone AND isValid
-            mpc_select(tio, yield, leftSiblingIncluded, Check, leftSiblingIncluded, incl);
-            mpc_select(tio, yield, rightSiblingIncluded, Check, rightSiblingIncluded, incl);
+            mpc_and(tio, sub_yield, Check, isNotDone, isValid); // Check = isNotDone AND isValid
+            mpc_select(tio, sub_yield, leftSiblingIncluded, Check, leftSiblingIncluded, incl);
+            mpc_select(tio, sub_yield, rightSiblingIncluded, Check, rightSiblingIncluded, incl);
 
 
             // --- Setting the marks in bitVec using Levelwise array ---
@@ -346,6 +350,26 @@ void SegmentTree7::getBitVector(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, Duor
                 bitVecLevel[leftPath[level]] = incl;
                 bitVecLevel[rightPath[level]] = incl;
             }
+
+
+            // #ifdef SEGTREE_VERBOSE
+            // auto leftIndexRecons = mpc_reconstruct(tio, sub_yield, leftPath[level]);
+            // auto rightIndexRecons = mpc_reconstruct(tio, sub_yield, rightPath[level]);
+            // auto leftSiblingRecons = mpc_reconstruct(tio, sub_yield, leftSibling);
+            // auto rightSiblingRecons = mpc_reconstruct(tio, sub_yield, rightSibling);
+            // auto leftSiblingIncludedRecons = mpc_reconstruct(tio, sub_yield, leftSiblingIncluded);
+            // auto rightSiblingIncludedRecons = mpc_reconstruct(tio, sub_yield, rightSiblingIncluded);
+            // auto isNotDoneRecons = mpc_reconstruct(tio, sub_yield, isNotDone);
+            // auto isValidRecons = mpc_reconstruct(tio, sub_yield, isValid);
+            // auto CheckRecons = mpc_reconstruct(tio, sub_yield, Check);
+            // std::cout << "Level " << level << " processing:" << std::endl;
+            // std::cout << "Left Index = " << leftIndexRecons << ", Right Index = " << rightIndexRecons << std::endl;
+            // std::cout << "Left Sibling Index = " << leftSiblingRecons << ", Right Sibling Index = " << rightSiblingRecons << std::endl;
+            // std::cout << "Left Sibling Included = " << leftSiblingIncludedRecons << ", Right Sibling Included = " << rightSiblingIncludedRecons << std::endl;
+            // std::cout << "Is Not Done = " << isNotDoneRecons << std::endl;
+            // std::cout << "Is Valid = " << isValidRecons << std::endl;
+            // std::cout << "Check = " << CheckRecons << std::endl;
+            // #endif
         });
     }
     
@@ -358,6 +382,17 @@ void SegmentTree7::RangeSum(MPCTIO &tio,  MPCIO &mpcio, yield_t & yield, RegAS l
     getBitVector(tio, mpcio, yield, bitVec, left, right);
 
     auto bitVecArray = bitVec.flat(tio, yield);
+    // #ifdef SEGTREE_VERBOSE
+    // auto bitVecRecons = bitVecArray.reconstruct();
+    // std::cout << "Bit Vector: ";
+    // for(size_t i=0; i<num_items; i++) {
+    //     std::cout << bitVecRecons[i].share() << " ";
+    // }
+    // std::cout << std::endl;
+    // #endif
+
+
+
     auto SegTreeArray = oram.flat(tio, yield);
 
     RegAS sum;
