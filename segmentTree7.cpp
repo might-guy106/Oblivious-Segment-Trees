@@ -304,7 +304,7 @@ void SegmentTree7::getBitVector(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, Duor
         size_t level = depth - i;
 
         read_coroutines.emplace_back([&tio, level, i, this, &isValid, &leftPath, &rightPath, &bitVecArray, 
-                                    &leftChildSiblingArray, &rightChildSiblingArray, &parentArray](yield_t &sub_yield) {
+                                    &leftChildSiblingArray, &rightChildSiblingArray](yield_t &sub_yield) {
             size_t levelStart = getLevelStart7(level);
             size_t levelLength = getLevelLength7(level);
             
@@ -317,7 +317,6 @@ void SegmentTree7::getBitVector(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, Duor
             typename Duoram < RegXS > ::Flat bitVecLevel(bitVecArray, tio, sub_yield, levelStart, levelLength);
             typename Duoram < RegAS > ::Flat leftChildSiblingLevel(leftChildSiblingArray, tio, sub_yield, levelStart, levelLength);
             typename Duoram < RegAS > ::Flat rightChildSiblingLevel(rightChildSiblingArray, tio, sub_yield, levelStart, levelLength);
-            typename Duoram < RegAS > ::Flat parentLevel(parentArray, tio, sub_yield, levelStart, levelLength);
             
             // Read all necessary values for this level
             RegAS leftSibling = leftChildSiblingLevel[leftPath[level]];
@@ -426,6 +425,8 @@ void SegmentTree7::RangeSum(MPCTIO &tio,  MPCIO &mpcio, yield_t & yield, RegAS l
 
 // Main Update function
 void SegmentTree7::Update(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS index, RegAS value) {
+    auto update_start = std::chrono::high_resolution_clock::now();
+    
     auto SegTreeArray = oram.flat(tio, yield);
     auto parentArray = parent.flat(tio, yield);
 
@@ -451,24 +452,54 @@ void SegmentTree7::Update(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS inde
     std::cout << "Diff = " << recons_diff << std::endl;
     #endif
     
-    for(size_t i = 1; i <= depth; i++) {
-        size_t level = depth - i;
+    // Phase 1: Pre-compute the path indices for all levels (similar to getBitVector)
+    std::vector<RegAS> updatePath(depth);
+    updatePath[depth - 1] = index;  // Start at leaf level
+    
+    // Compute parent indices for all levels going up the tree
+    for(size_t i = 1; i < depth; i++) {
+        size_t level = depth - i;  // Current level (leaf to root)
         size_t levelStart = getLevelStart7(level);
         size_t levelLength = getLevelLength7(level);
-
+        
         typename Duoram<RegAS>::Flat parentLevel(parentArray, tio, yield, levelStart, levelLength);
-        typename Duoram<RegAS>::Flat segTreeLevel(SegTreeArray, tio, yield, levelStart, levelLength);
-    
-        segTreeLevel[index] += diff;
-        index = parentLevel[index];
-
-        // Debugging and intermediate reconstructions
-        #ifdef SEGTREE_VERBOSE
-        auto recons_Index = mpc_reconstruct(tio, yield, index);
-        auto recons_updated = mpc_reconstruct(tio, yield, segTreeLevel[index]);
-        std::cout << "Updated Index = " << (levelStart + recons_Index) << " with value = " << recons_updated << std::endl;
-        #endif
+        
+        // Read parent index for next level
+        updatePath[level - 1] = parentLevel[updatePath[level]];
     }
+    
+    auto phase1_end = std::chrono::high_resolution_clock::now();
+    
+    // Phase 2: Parallelize the updates across all levels
+    std::vector<coro_t> update_coroutines;
+    for(size_t i = 1; i <= depth; i++) {
+        size_t level = depth - i;
+        
+        update_coroutines.emplace_back([&tio, level, this, &diff, &updatePath, &SegTreeArray](yield_t &sub_yield) {
+            size_t levelStart = getLevelStart7(level);
+            size_t levelLength = getLevelLength7(level);
+            
+            typename Duoram<RegAS>::Flat segTreeLevel(SegTreeArray, tio, sub_yield, levelStart, levelLength);
+            
+            // Update the value at this level's index
+            segTreeLevel[updatePath[level]] += diff;
+            
+            #ifdef SEGTREE_VERBOSE
+            auto recons_Index = mpc_reconstruct(tio, sub_yield, updatePath[level]);
+            auto recons_updated = mpc_reconstruct(tio, sub_yield, segTreeLevel[updatePath[level]]);
+            std::cout << "Updated Index = " << (levelStart + recons_Index) << " with value = " << recons_updated << std::endl;
+            #endif
+        });
+    }
+    
+    run_coroutines(tio, update_coroutines);
+    
+    auto phase2_end = std::chrono::high_resolution_clock::now();
+    auto phase1_duration = std::chrono::duration_cast<std::chrono::milliseconds>(phase1_end - update_start).count();
+    auto phase2_duration = std::chrono::duration_cast<std::chrono::milliseconds>(phase2_end - phase1_end).count();
+    
+    std::cout << "Update Phase 1 (Path Computation) Time: " << phase1_duration << " ms" << std::endl;
+    std::cout << "Update Phase 2 (Parallel Updates) Time: " << phase2_duration << " ms" << std::endl;
 }
 
 // Main function to run Segment Tree 6 operations
