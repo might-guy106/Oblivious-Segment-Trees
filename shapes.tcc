@@ -85,9 +85,10 @@ Duoram<T>::Path::Path(Shape &parent, MPCTIO &tio, yield_t &yield,
 // Constructor for the CustomPath shape
 template <typename T>
 Duoram<T>::CustomPath::CustomPath(Shape &parent, MPCTIO &tio, yield_t &yield,
-    size_t start_index) :
+    size_t start_index, std::function<size_t(size_t)> compute_parent_func) :
     Shape(parent, parent.duoram, tio, yield),
-    start_index(start_index)
+    start_index(start_index),
+    compute_parent(compute_parent_func)
 {
     size_t parentsize = parent.size();
     assert(start_index > 0 && start_index < parentsize);

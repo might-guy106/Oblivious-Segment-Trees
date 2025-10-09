@@ -3,6 +3,7 @@
 
 // Various Shapes beyond the standard Flat (in duoram.hpp)
 
+#include <functional>
 #include "duoram.hpp"
 
 
@@ -298,14 +299,13 @@ public:
 
 
 // A CustomPath is a Shape that represents a custom path through a tree
-// with special parent indexing logic.
-// The parent of node at index ind is:
-// - (ind+1)/2 - 1 if ind is one less than a power of two
-// - (ind+1)/2 otherwise
+// with user-defined parent indexing logic.
+// The parent computation function is passed as a parameter to the constructor.
 
 template <typename T>
 class Duoram<T>::CustomPath : public Duoram<T>::Shape {
     size_t start_index;
+    std::function<size_t(size_t)> compute_parent;
     
     inline size_t indexmap(size_t idx) const override {
         if (idx < path_indices.size()) {
@@ -314,30 +314,18 @@ class Duoram<T>::CustomPath : public Duoram<T>::Shape {
         return 0;
     }
     
-    // Helper function to compute parent index using custom logic
-    static size_t compute_parent(size_t ind) {
-        if (ind <= 1) return 0;  // Root or invalid
-        
-        // Check if ind is one less than a power of two
-        // i.e., check if (ind + 1) is a power of two
-        if (((ind + 1) & ind) == 0) {
-            // ind is one less than a power of two
-            return ((ind + 1) / 2) - 1;
-        } else {
-            return (ind + 1) / 2;
-        }
-    }
-    
     public:
     std::vector<size_t> path_indices;
     // Constructor
+    // compute_parent_func: A function that takes a node index and returns its parent index
     CustomPath(Shape &parent, MPCTIO &tio, yield_t &yield,
-        size_t start_index);
+        size_t start_index, std::function<size_t(size_t)> compute_parent_func);
 
     // Copy the given CustomPath except for the tio and yield
     CustomPath(const CustomPath &copy_from, MPCTIO &tio, yield_t &yield) :
         Shape(copy_from, tio, yield),
         start_index(copy_from.start_index),
+        compute_parent(copy_from.compute_parent),
         path_indices(copy_from.path_indices) {}
 
     // Update the context (MPCTIO and yield if you've started a new

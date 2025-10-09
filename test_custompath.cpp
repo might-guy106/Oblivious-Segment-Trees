@@ -16,6 +16,84 @@ void test_custompath(MPCIO &mpcio, const PRACOptions &opts) {
         
         std::cout << "[Player " << player << "] Starting CustomPath test" << std::endl;
         
+        // ========== TEST 1: Duoram with 2-element Tuples ==========
+        std::cout << "\n[Player " << player << "] === Testing Duoram<std::tuple<RegAS, RegAS>> ===" << std::endl;
+        
+        // Create a Duoram of tuples of additively shared values
+        Duoram<std::tuple<RegAS, RegAS>> oram_tuple2(player, tree_size);
+        
+        std::cout << "[Player " << player << "] Created Duoram with 2-element tuples" << std::endl;
+        
+        // Get a Flat view
+        auto flat_tuple2 = oram_tuple2.flat(tio, yield);
+        
+        std::cout << "[Player " << player << "] Got Flat view for 2-element tuples" << std::endl;
+        
+        // Initialize with tuples (i*100, i*100+1)
+        flat_tuple2.init([](size_t i) -> std::tuple<RegAS, RegAS> {
+            RegAS first, second;
+            first.set(i * 100);
+            second.set(i * 100 + 1);
+            return std::make_tuple(first, second);
+        });
+        
+        std::cout << "[Player " << player << "] Initialized flat array with 2-element tuples" << std::endl;
+        
+        // Reconstruct and print tuples
+        auto reconstructed_tuples2 = flat_tuple2.reconstruct();
+        for(size_t i = 0; i < tree_size; ++i) {
+            std::cout << "[Player " << player << "] flat_tuple2[" << i << "] = (" 
+                      << std::get<0>(reconstructed_tuples2[i]).share() << ", "
+                      << std::get<1>(reconstructed_tuples2[i]).share() << ")" << std::endl;
+        }
+        
+        // ========== TEST 1b: Duoram with 3-element Tuples ==========
+        std::cout << "\n[Player " << player << "] === Testing Duoram<std::tuple<RegAS, RegAS, RegAS>> ===" << std::endl;
+        
+        // Create a Duoram of 3-element tuples
+        Duoram<std::tuple<RegAS, RegAS, RegAS>> oram_tuple3(player, tree_size);
+        
+        std::cout << "[Player " << player << "] Created Duoram with 3-element tuples" << std::endl;
+        
+        // Get a Flat view
+        auto flat_tuple3 = oram_tuple3.flat(tio, yield);
+        
+        std::cout << "[Player " << player << "] Got Flat view for 3-element tuples" << std::endl;
+        
+        // Initialize with tuples (i*100, i*100+1, i*100+2)
+        flat_tuple3.init([](size_t i) -> std::tuple<RegAS, RegAS, RegAS> {
+            RegAS first, second, third;
+            first.set(i * 100);
+            second.set(i * 100 + 1);
+            third.set(i * 100 + 2);
+            return std::make_tuple(first, second, third);
+        });
+        
+        std::cout << "[Player " << player << "] Initialized flat array with 3-element tuples" << std::endl;
+        
+        // Reconstruct and print tuples
+        auto reconstructed_tuples3 = flat_tuple3.reconstruct();
+        for(size_t i = 0; i < tree_size; ++i) {
+            std::cout << "[Player " << player << "] flat_tuple3[" << i << "] = (" 
+                      << std::get<0>(reconstructed_tuples3[i]).share() << ", "
+                      << std::get<1>(reconstructed_tuples3[i]).share() << ", "
+                      << std::get<2>(reconstructed_tuples3[i]).share() << ")" << std::endl;
+        }
+
+        for(int i = 1; i < tree_size; ++i) {
+            std::tuple<RegAS, RegAS, RegAS> curNode = flat_tuple3[i];
+            std::tuple<RegAS, RegAS, RegAS> prevNode = flat_tuple3[i-1];
+            curNode = std::make_tuple(
+                std::get<0>(curNode) + std::get<0>(prevNode),
+                std::get<1>(curNode) + std::get<1>(prevNode),
+                std::get<2>(curNode) + std::get<2>(prevNode)
+            );
+            flat_tuple3[i] = curNode;
+        }
+        
+        // ========== TEST 2: Original Duoram with single RegAS ==========
+        std::cout << "\n[Player " << player << "] === Testing Duoram<RegAS> ===" << std::endl;
+        
         // Create a Duoram of additively shared values
         Duoram<RegAS> oram(player, tree_size);
         
@@ -44,6 +122,34 @@ void test_custompath(MPCIO &mpcio, const PRACOptions &opts) {
             std::cout << "=========================" << std::endl;
         }
         
+        // Define custom parent function
+        // The parent of node at index ind is:
+        // - (ind+1)/2 - 1 if ind is one less than a power of two
+        // - (ind+1)/2 otherwise
+        auto my_compute_parent = [](size_t ind) -> size_t {
+            if (ind <= 1) return 0;  // Root or invalid
+            
+            // Check if ind is one less than a power of two
+            // i.e., check if (ind + 1) is a power of two
+            if (((ind + 1) & ind) == 0) {
+                // ind is one less than a power of two
+                return ((ind + 1) / 2) - 1;
+            } else {
+                return (ind + 1) / 2;
+            }
+        };
+
+        auto my_compute_parent2 = [](size_t ind) -> size_t {
+            if (ind <= 1) return 0;  // Root or invalid
+            
+            // Check if ind is a power of two
+            if ((ind & (ind - 1)) == 0) {
+                return (ind / 2);
+            } else {
+                return (ind - 1) / 2;
+            }
+        };
+        
         // Test different start indices
         std::vector<size_t> test_indices = {10, 11, 12};
         
@@ -54,8 +160,8 @@ void test_custompath(MPCIO &mpcio, const PRACOptions &opts) {
             
             std::cout << "[Player " << player << "] Creating CustomPath from node " << start_idx << std::endl;
             
-            // Create a CustomPath starting from start_idx
-            typename Duoram<RegAS>::CustomPath cpath(flat, tio, yield, start_idx);
+            // Create a CustomPath starting from start_idx with custom parent function
+            typename Duoram<RegAS>::CustomPath cpath(flat, tio, yield, start_idx, my_compute_parent2);
             
             std::cout << "[Player " << player << "] CustomPath created, size: " << cpath.size() << std::endl;
                         
