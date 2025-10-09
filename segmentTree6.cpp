@@ -1,4 +1,5 @@
 #include <functional>
+#include <chrono>
 #include "mpcops.hpp"
 #include "types.hpp"
 #include "duoram.hpp"
@@ -276,7 +277,7 @@ void SegmentTree6::getBitVector(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, Duor
     one.set(tio.player()==0 ? 1 : 0);
     RegBS zero;
     zero.set(0);
-    
+        
     for(uint32_t i=1; i<=depth; i++) {
         size_t level = depth - i;
         size_t levelStart = getLevelStart6(level);
@@ -461,10 +462,18 @@ void SegTree6(MPCIO &mpcio, const PRACOptions &opts, char **args) {
 
     run_coroutines(tio, [&tio, &mpcio, len, depth, n_updates, n_queries] (yield_t &yield) {
         
+        // Time initialization
+        auto init_start = std::chrono::high_resolution_clock::now();
+        
         SegmentTree6 segTree(tio.player(), len, depth);
         segTree.init(tio, yield);
+        
+        auto init_end = std::chrono::high_resolution_clock::now();
+        auto init_duration = std::chrono::duration_cast<std::chrono::milliseconds>(init_end - init_start);
+        
         std::cout << "===== Segment Tree Init Stats =====" << std::endl;
         std::cout << "Updates: " << n_updates << ", Queries: " << n_queries << std::endl;
+        std::cout << "Initialization Time: " << init_duration.count() / 1000.0 << " seconds" << std::endl;
         tio.sync_lamport();
         mpcio.dump_stats(std::cout);
         mpcio.reset_stats();
@@ -476,6 +485,9 @@ void SegTree6(MPCIO &mpcio, const PRACOptions &opts, char **args) {
         segTree.printSegmentTree(tio, yield);
         #endif
 
+        // Time updates
+        auto update_start = std::chrono::high_resolution_clock::now();
+        
         // Perform updates
         for (size_t u = 0; u < n_updates; ++u) {
             std::cout << "\n===== Update " << (u + 1) << " begins =====" << std::endl;
@@ -492,7 +504,11 @@ void SegTree6(MPCIO &mpcio, const PRACOptions &opts, char **args) {
             std::cout << "Update " << (u + 1) << " ends" << std::endl;
         }
 
+        auto update_end = std::chrono::high_resolution_clock::now();
+        auto update_duration = std::chrono::duration_cast<std::chrono::milliseconds>(update_end - update_start);
+
         std::cout << "===== Updates Stats =====" << std::endl;
+        std::cout << "Total Updates Time: " << update_duration.count() / 1000.0 << " seconds" << std::endl;
         tio.sync_lamport();
         mpcio.dump_stats(std::cout);
         mpcio.reset_stats();
@@ -504,6 +520,9 @@ void SegTree6(MPCIO &mpcio, const PRACOptions &opts, char **args) {
         segTree.printSegmentTree(tio, yield);
         #endif
 
+        // Time range queries
+        auto query_start = std::chrono::high_resolution_clock::now();
+        
         // Perform range sum queries
         for (size_t q = 0; q < n_queries; ++q) {    
             std::cout << "\n===== Range Sum Query " << (q + 1) << " begins =====" << std::endl;
@@ -528,6 +547,10 @@ void SegTree6(MPCIO &mpcio, const PRACOptions &opts, char **args) {
             std::cout << "Range Sum Query " << (q + 1) << " ends" << std::endl;
         }
 
+        auto query_end = std::chrono::high_resolution_clock::now();
+        auto query_duration = std::chrono::duration_cast<std::chrono::milliseconds>(query_end - query_start);
+
         std::cout << "===== Range Sum Stats =====" << std::endl;
+        std::cout << "Total Range Queries Time: " << query_duration.count() / 1000.0 << " seconds" << std::endl;
     });
 }

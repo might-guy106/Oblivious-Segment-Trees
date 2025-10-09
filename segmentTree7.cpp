@@ -9,7 +9,7 @@
 #include "segmentTree7.hpp"
 
 // uncomment to enable intermediate reconstructions and logging
-#define SEGTREE_VERBOSE
+// #define SEGTREE_VERBOSE
 
 /*
 The segment tree data structure in SegmentTree7 uses a LEVEL-WISE RESTRUCTURED ARRAY layout 
@@ -267,9 +267,6 @@ void SegmentTree7::getBitVector(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, Duor
     auto rightChildSiblingArray = rightChildSibling.flat(tio, yield);
     auto parentArray = parent.flat(tio, yield);
 
-    // RegXS incl;
-    // incl.set(tio.player()==0 ? 1 : 0);
-
     RegBS isValid; // isValid = right >= left
     CDPF cdpf = tio.cdpf(yield);
     RegAS diff = rightLevelIndex - leftLevelIndex;
@@ -278,6 +275,7 @@ void SegmentTree7::getBitVector(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, Duor
 
 
     // Step 1: Pre-compute the path indices for all levels
+    auto start_time = std::chrono::high_resolution_clock::now();
     // Store leftLevelIndex and rightLevelIndex for each level
     std::vector<RegAS> leftPath(depth);
     std::vector<RegAS> rightPath(depth);
@@ -297,7 +295,9 @@ void SegmentTree7::getBitVector(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, Duor
         leftPath[level - 1] = parentLevel[leftPath[level]];
         rightPath[level - 1] = parentLevel[rightPath[level]];
     }
-    
+
+    auto step1_end_time = std::chrono::high_resolution_clock::now();
+
     // Step 2: Now parallelize the reads and computations for all levels
     std::vector<coro_t> read_coroutines;
     for(uint32_t i = 1; i <= depth; i++) {
@@ -350,30 +350,17 @@ void SegmentTree7::getBitVector(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, Duor
                 bitVecLevel[leftPath[level]] = incl;
                 bitVecLevel[rightPath[level]] = incl;
             }
-
-
-            // #ifdef SEGTREE_VERBOSE
-            // auto leftIndexRecons = mpc_reconstruct(tio, sub_yield, leftPath[level]);
-            // auto rightIndexRecons = mpc_reconstruct(tio, sub_yield, rightPath[level]);
-            // auto leftSiblingRecons = mpc_reconstruct(tio, sub_yield, leftSibling);
-            // auto rightSiblingRecons = mpc_reconstruct(tio, sub_yield, rightSibling);
-            // auto leftSiblingIncludedRecons = mpc_reconstruct(tio, sub_yield, leftSiblingIncluded);
-            // auto rightSiblingIncludedRecons = mpc_reconstruct(tio, sub_yield, rightSiblingIncluded);
-            // auto isNotDoneRecons = mpc_reconstruct(tio, sub_yield, isNotDone);
-            // auto isValidRecons = mpc_reconstruct(tio, sub_yield, isValid);
-            // auto CheckRecons = mpc_reconstruct(tio, sub_yield, Check);
-            // std::cout << "Level " << level << " processing:" << std::endl;
-            // std::cout << "Left Index = " << leftIndexRecons << ", Right Index = " << rightIndexRecons << std::endl;
-            // std::cout << "Left Sibling Index = " << leftSiblingRecons << ", Right Sibling Index = " << rightSiblingRecons << std::endl;
-            // std::cout << "Left Sibling Included = " << leftSiblingIncludedRecons << ", Right Sibling Included = " << rightSiblingIncludedRecons << std::endl;
-            // std::cout << "Is Not Done = " << isNotDoneRecons << std::endl;
-            // std::cout << "Is Valid = " << isValidRecons << std::endl;
-            // std::cout << "Check = " << CheckRecons << std::endl;
-            // #endif
         });
     }
     
     run_coroutines(tio, read_coroutines);
+
+    auto step2_end_time = std::chrono::high_resolution_clock::now();
+    auto step1_duration = std::chrono::duration_cast<std::chrono::milliseconds>(step1_end_time - start_time).count();
+    auto step2_duration = std::chrono::duration_cast<std::chrono::milliseconds>(step2_end_time - step1_end_time).count();
+
+    std::cout << "Step 1 (Path Computation) Time: " << step1_duration << " ms" << std::endl;
+    std::cout << "Step 2 (Level-wise Marking) Time: " << step2_duration << " ms" << std::endl;
 }
 
 // Main RangeSum function
@@ -381,46 +368,55 @@ void SegmentTree7::RangeSum(MPCTIO &tio,  MPCIO &mpcio, yield_t & yield, RegAS l
     Duoram < RegXS > bitVec(tio.player(), num_items);
     getBitVector(tio, mpcio, yield, bitVec, left, right);
 
+    auto accumulation_start = std::chrono::high_resolution_clock::now();
+    
     auto bitVecArray = bitVec.flat(tio, yield);
-    // #ifdef SEGTREE_VERBOSE
-    // auto bitVecRecons = bitVecArray.reconstruct();
-    // std::cout << "Bit Vector: ";
-    // for(size_t i=0; i<num_items; i++) {
-    //     std::cout << bitVecRecons[i].share() << " ";
-    // }
-    // std::cout << std::endl;
-    // #endif
-
-
-
     auto SegTreeArray = oram.flat(tio, yield);
 
+    // Store partial sums for each level
+    std::vector<RegAS> levelSums(depth);
+    for(size_t level = 0; level < depth; level++) {
+        levelSums[level].set(0);
+    }
+
+    // Parallelize accumulation across all levels
+    std::vector<coro_t> accumulation_coroutines;
+    for(size_t level = 0; level < depth; level++) {
+        accumulation_coroutines.emplace_back([&tio, level, this, &levelSums, &bitVecArray, &SegTreeArray](yield_t &sub_yield) {
+            size_t levelStart = getLevelStart7(level);
+            size_t levelLength = getLevelLength7(level);
+
+            typename Duoram<RegXS>::Flat bitVecLevel(bitVecArray, tio, sub_yield, levelStart, levelLength);
+            typename Duoram<RegAS>::Flat segTreeLevel(SegTreeArray, tio, sub_yield, levelStart, levelLength);
+            
+            // Iterate from 1 to avoid the extra node (position 0 in each level)
+            for(size_t pos = 1; pos < levelLength; pos++) {
+                RegXS element = bitVecLevel[pos];
+                RegBS incl = element.bitat(0);
+                RegAS val = segTreeLevel[pos];
+                RegAS zero;
+                zero.set(0);
+
+                RegAS sum1;
+                mpc_select(tio, sub_yield, sum1, incl, zero, val);
+
+                levelSums[level].ashare += sum1.ashare;
+            }
+        });
+    }
+    
+    run_coroutines(tio, accumulation_coroutines);
+
+    // Combine all level sums
     RegAS sum;
     sum.set(0);
-
-    //RangeSum accumulation (level-wise)
     for(size_t level = 0; level < depth; level++) {
-        size_t levelStart = getLevelStart7(level);
-        size_t levelLength = getLevelLength7(level);
-
-        typename Duoram<RegXS>::Flat bitVecLevel(bitVecArray, tio, yield, levelStart, levelLength);
-        typename Duoram<RegAS>::Flat segTreeLevel(SegTreeArray, tio, yield, levelStart, levelLength);
-        
-        // Iterate from 1 to avoid the extra node (position 0 in each level)
-        for(size_t pos = 1; pos < levelLength; pos++) {
-            
-            RegXS element = bitVecLevel[pos];
-            RegBS incl = element.bitat(0);
-            RegAS val = segTreeLevel[pos];
-            RegAS zero;
-            zero.set(0);
-
-            RegAS sum1;
-            mpc_select(tio, yield, sum1, incl, zero, val);
-
-            sum.ashare += sum1.ashare;
-        }
+        sum.ashare += levelSums[level].ashare;
     }
+
+    auto accumulation_end = std::chrono::high_resolution_clock::now();
+    auto accumulation_duration = std::chrono::duration_cast<std::chrono::milliseconds>(accumulation_end - accumulation_start).count();
+    std::cout << "Step 3 (Sum Accumulation - Parallelized) Time: " << accumulation_duration << " ms" << std::endl;
 
     #ifdef SEGTREE_VERBOSE
     value_t answer = mpc_reconstruct(tio, yield, sum);
