@@ -297,6 +297,108 @@ public:
 };
 
 
+// A CustomPath is a Shape that represents a custom path through a tree
+// with special parent indexing logic.
+// The parent of node at index ind is:
+// - (ind+1)/2 - 1 if ind is one less than a power of two
+// - (ind+1)/2 otherwise
+
+template <typename T>
+class Duoram<T>::CustomPath : public Duoram<T>::Shape {
+    size_t start_index;
+    
+    inline size_t indexmap(size_t idx) const override {
+        if (idx < path_indices.size()) {
+            return path_indices[idx];
+        }
+        return 0;
+    }
+    
+    // Helper function to compute parent index using custom logic
+    static size_t compute_parent(size_t ind) {
+        if (ind <= 1) return 0;  // Root or invalid
+        
+        // Check if ind is one less than a power of two
+        // i.e., check if (ind + 1) is a power of two
+        if (((ind + 1) & ind) == 0) {
+            // ind is one less than a power of two
+            return ((ind + 1) / 2) - 1;
+        } else {
+            return (ind + 1) / 2;
+        }
+    }
+    
+    public:
+    std::vector<size_t> path_indices;
+    // Constructor
+    CustomPath(Shape &parent, MPCTIO &tio, yield_t &yield,
+        size_t start_index);
+
+    // Copy the given CustomPath except for the tio and yield
+    CustomPath(const CustomPath &copy_from, MPCTIO &tio, yield_t &yield) :
+        Shape(copy_from, tio, yield),
+        start_index(copy_from.start_index),
+        path_indices(copy_from.path_indices) {}
+
+    // Update the context (MPCTIO and yield if you've started a new
+    // thread, or just yield if you've started a new coroutine in the
+    // same thread).  Returns a new Shape with an updated context.
+    CustomPath context(MPCTIO &new_tio, yield_t &new_yield) const {
+        return CustomPath(*this, new_tio, new_yield);
+    }
+    CustomPath context(yield_t &new_yield) const {
+        return CustomPath(*this, this->tio, new_yield);
+    }
+
+    // Index into this CustomPath in various ways
+    typename Duoram::Shape::template MemRefS<RegAS,T,std::nullopt_t,CustomPath,1>
+            operator[](const RegAS &idx) {
+        typename Duoram<T>::Shape::
+            template MemRefS<RegAS,T,std::nullopt_t,CustomPath,1>
+            res(*this, idx, std::nullopt);
+        return res;
+    }
+    typename Duoram::Shape::template MemRefS<RegXS,T,std::nullopt_t,CustomPath,1>
+            operator[](const RegXS &idx) {
+        typename Duoram<T>::Shape::
+            template MemRefS<RegXS,T,std::nullopt_t,CustomPath,1>
+            res(*this, idx, std::nullopt);
+        return res;
+    }
+    template <typename U, nbits_t WIDTH>
+    typename Duoram::Shape::template MemRefS<U,T,std::nullopt_t,CustomPath,WIDTH>
+            operator[](OblivIndex<U,WIDTH> &obidx) {
+        typename Duoram<T>::Shape::
+            template MemRefS<RegXS,T,std::nullopt_t,CustomPath,WIDTH>
+            res(*this, obidx, std::nullopt);
+        return res;
+    }
+    typename Duoram::Shape::template MemRefExpl<T,std::nullopt_t>
+            operator[](address_t idx) {
+        typename Duoram<T>::Shape::
+            template MemRefExpl<T,std::nullopt_t>
+            res(*this, idx, std::nullopt);
+        return res;
+    }
+    template <typename U>
+    Duoram::Shape::MemRefInd<U, CustomPath>
+            operator[](const std::vector<U> &indcs) {
+        typename Duoram<T>::Shape::
+            template MemRefInd<U,CustomPath>
+            res(*this, indcs);
+        return res;
+    }
+    template <typename U, size_t N>
+    Duoram::Shape::MemRefInd<U, CustomPath>
+            operator[](const std::array<U,N> &indcs) {
+        typename Duoram<T>::Shape::
+            template MemRefInd<U,CustomPath>
+            res(*this, indcs);
+        return res;
+    }
+};
+
+
 #include "shapes.tcc"
 
 #endif
