@@ -135,7 +135,7 @@ class SegmentTree8 {
     // Single Duoram storing SegTreeNode structs
     Duoram<SegTreeNode> oram;
 
-    void getBitVector(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, Duoram < RegXS > &bitVec, RegAS left, RegAS right);
+    RegAS computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS left, RegAS right);
 
     public:
 
