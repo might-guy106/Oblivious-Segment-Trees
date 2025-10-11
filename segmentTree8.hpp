@@ -5,6 +5,9 @@
 #include "mpcops.hpp"
 #include "duoram.hpp"
 
+// Forward declaration
+class PerformanceLogger;
+
 // Segment Tree Node structure with named fields
 struct SegTreeNode {
     RegAS value;
@@ -135,7 +138,8 @@ class SegmentTree8 {
     // Single Duoram storing SegTreeNode structs
     Duoram<SegTreeNode> oram;
 
-    RegAS computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS left, RegAS right);
+    RegAS computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS left, RegAS right, 
+                          PerformanceLogger* logger = nullptr, size_t operation_id = 0);
 
     public:
 
@@ -150,9 +154,11 @@ class SegmentTree8 {
 
         void init(MPCTIO &tio, yield_t & yield);
 
-    void RangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS left, RegAS right);
+    void RangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS left, RegAS right, 
+                  PerformanceLogger* logger = nullptr, size_t operation_id = 0);
     // Instrumented Update (global-index version): measures (1) leaf read, (2) per-level update write, (3) parent index read timings/resources
-    void Update(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS index, RegAS value);
+    void Update(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS index, RegAS value,
+                PerformanceLogger* logger = nullptr, size_t operation_id = 0);
     void printSegmentTree(MPCTIO &tio, yield_t & yield);
 
 };

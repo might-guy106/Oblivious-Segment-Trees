@@ -259,13 +259,13 @@ void SegmentTree7::printSegmentTree(MPCTIO &tio, yield_t & yield) {
     }
 }
 
-// Main helper function to get the bit vector for RangeSum
-void SegmentTree7::getBitVector(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, Duoram < RegXS > &bitVec, RegAS leftLevelIndex, RegAS rightLevelIndex) {
+// Main function to compute range sum directly (optimized - no intermediate bitVec)
+RegAS SegmentTree7::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS leftLevelIndex, RegAS rightLevelIndex) {
 
-    auto bitVecArray = bitVec.flat(tio, yield);
     auto leftChildSiblingArray = leftChildSibling.flat(tio, yield);
     auto rightChildSiblingArray = rightChildSibling.flat(tio, yield);
     auto parentArray = parent.flat(tio, yield);
+    auto SegTreeArray = oram.flat(tio, yield);
 
     RegBS isValid; // isValid = right >= left
     CDPF cdpf = tio.cdpf(yield);
@@ -298,124 +298,104 @@ void SegmentTree7::getBitVector(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, Duor
 
     auto step1_end_time = std::chrono::high_resolution_clock::now();
 
-    // Step 2: Now parallelize the reads and computations for all levels
-    std::vector<coro_t> read_coroutines;
+    // Step 2: Compute sum directly while identifying nodes to include
+    std::vector<RegAS> levelSums(depth);
+    for(size_t level = 0; level < depth; level++) {
+        levelSums[level].set(0);
+    }
+
+    std::vector<coro_t> sum_coroutines;
     for(uint32_t i = 1; i <= depth; i++) {
         size_t level = depth - i;
 
-        read_coroutines.emplace_back([&tio, level, i, this, &isValid, &leftPath, &rightPath, &bitVecArray, 
-                                    &leftChildSiblingArray, &rightChildSiblingArray](yield_t &sub_yield) {
+        sum_coroutines.emplace_back([&tio, level, i, this, &isValid, &leftPath, &rightPath, 
+                                    &leftChildSiblingArray, &rightChildSiblingArray, &SegTreeArray, &levelSums](yield_t &sub_yield) {
             size_t levelStart = getLevelStart7(level);
             size_t levelLength = getLevelLength7(level);
             
-            // Create incl fresh in each coroutine to avoid sharing issues
+            // Create variables fresh in each coroutine to avoid sharing issues
             RegXS incl;
             incl.set(tio.player()==0 ? 1 : 0);
             RegAS one;
             one.set(tio.player()==0 ? 1 : 0);
+            RegAS zero;
+            zero.set(0);
             
-            typename Duoram < RegXS > ::Flat bitVecLevel(bitVecArray, tio, sub_yield, levelStart, levelLength);
             typename Duoram < RegAS > ::Flat leftChildSiblingLevel(leftChildSiblingArray, tio, sub_yield, levelStart, levelLength);
             typename Duoram < RegAS > ::Flat rightChildSiblingLevel(rightChildSiblingArray, tio, sub_yield, levelStart, levelLength);
+            typename Duoram < RegAS > ::Flat segTreeLevel(SegTreeArray, tio, sub_yield, levelStart, levelLength);
             
             // Read all necessary values for this level
             RegAS leftSibling = leftChildSiblingLevel[leftPath[level]];
             RegAS rightSibling = rightChildSiblingLevel[rightPath[level]];
 
-            // --- if left and right are adjacent or same then the marking of bitvector is already completed so we set isDone here ---
+            // --- if left and right are adjacent or same then the marking of nodes is already completed so we set isDone here ---
             RegBS isNotDone;
             CDPF cdpf1 = tio.cdpf(sub_yield);
             RegAS diff1 = rightPath[level] - (leftPath[level] + one); // diff1 = right - (left + 1)
             auto[lt_c1, eq_c1, gt_c1] = cdpf1.compare(tio, sub_yield, diff1, tio.aes_ops());
             isNotDone = gt_c1; // isNotDone = (right > left + 1)
 
-            // --- initialize leftSiblingIncluded and rightSiblingIncluded (contains 0 initially) ---
-            RegXS leftSiblingIncluded, rightSiblingIncluded; // will become 'incl' if Check passes later
-
-            // --- we have to mark the leftSibling and rightSibling only if marking is not yet completed and initial query is valid ---
+            // --- we have to include the leftSibling and rightSibling only if marking is not yet completed and initial query is valid ---
             RegBS Check;
             mpc_and(tio, sub_yield, Check, isNotDone, isValid); // Check = isNotDone AND isValid
-            mpc_select(tio, sub_yield, leftSiblingIncluded, Check, leftSiblingIncluded, incl);
-            mpc_select(tio, sub_yield, rightSiblingIncluded, Check, rightSiblingIncluded, incl);
 
+            // Add left sibling value if Check is true
+            RegAS leftSibValue = segTreeLevel[leftSibling];
+            RegAS leftContribution;
+            mpc_select(tio, sub_yield, leftContribution, Check, zero, leftSibValue);
+            levelSums[level].ashare += leftContribution.ashare;
 
-            // --- Setting the marks in bitVec using Levelwise array ---
-            bitVecLevel[leftSibling] = leftSiblingIncluded;
-            bitVecLevel[rightSibling] = rightSiblingIncluded;
+            // Add right sibling value if Check is true
+            RegAS rightSibValue = segTreeLevel[rightSibling];
+            RegAS rightContribution;
+            mpc_select(tio, sub_yield, rightContribution, Check, zero, rightSibValue);
+            levelSums[level].ashare += rightContribution.ashare;
 
-            // --- if its the leaf level then we also have to mark the leftLevelIndex and rightLevelIndex (this is there in the normal algorithm so it does not reveal any information) ---
+            // --- if its the leaf level then we also have to include the leftPath[level] and rightPath[level] themselves ---
             if(i == 1)
             {   
-                bitVecLevel[leftPath[level]] = incl;
-                bitVecLevel[rightPath[level]] = incl;
+                // Always add left leaf value
+                RegAS leftLeafValue = segTreeLevel[leftPath[level]];
+                levelSums[level].ashare += leftLeafValue.ashare;
+
+                // Only add right leaf if it's different from left (to avoid double counting)
+                RegBS isDifferent;
+                CDPF cdpf2 = tio.cdpf(sub_yield);
+                RegAS diff2 = rightPath[level] - leftPath[level];
+                auto[lt_c2, eq_c2, gt_c2] = cdpf2.compare(tio, sub_yield, diff2, tio.aes_ops());
+                isDifferent = gt_c2; // isDifferent = (right > left)
+
+                RegAS rightLeafValue = segTreeLevel[rightPath[level]];
+                RegAS rightLeafContribution;
+                mpc_select(tio, sub_yield, rightLeafContribution, isDifferent, zero, rightLeafValue);
+                levelSums[level].ashare += rightLeafContribution.ashare;
             }
         });
     }
     
-    run_coroutines(tio, read_coroutines);
+    run_coroutines(tio, sum_coroutines);
+
+    // Combine all level sums
+    RegAS totalSum;
+    totalSum.set(0);
+    for(size_t level = 0; level < depth; level++) {
+        totalSum.ashare += levelSums[level].ashare;
+    }
 
     auto step2_end_time = std::chrono::high_resolution_clock::now();
     auto step1_duration = std::chrono::duration_cast<std::chrono::milliseconds>(step1_end_time - start_time).count();
     auto step2_duration = std::chrono::duration_cast<std::chrono::milliseconds>(step2_end_time - step1_end_time).count();
 
     std::cout << "Step 1 (Path Computation) Time: " << step1_duration << " ms" << std::endl;
-    std::cout << "Step 2 (Level-wise Marking) Time: " << step2_duration << " ms" << std::endl;
+    std::cout << "Step 2 (Direct Sum Computation) Time: " << step2_duration << " ms" << std::endl;
+
+    return totalSum;
 }
 
 // Main RangeSum function
 void SegmentTree7::RangeSum(MPCTIO &tio,  MPCIO &mpcio, yield_t & yield, RegAS left, RegAS right) {
-    Duoram < RegXS > bitVec(tio.player(), num_items);
-    getBitVector(tio, mpcio, yield, bitVec, left, right);
-
-    auto accumulation_start = std::chrono::high_resolution_clock::now();
-    
-    auto bitVecArray = bitVec.flat(tio, yield);
-    auto SegTreeArray = oram.flat(tio, yield);
-
-    // Store partial sums for each level
-    std::vector<RegAS> levelSums(depth);
-    for(size_t level = 0; level < depth; level++) {
-        levelSums[level].set(0);
-    }
-
-    // Parallelize accumulation across all levels
-    std::vector<coro_t> accumulation_coroutines;
-    for(size_t level = 0; level < depth; level++) {
-        accumulation_coroutines.emplace_back([&tio, level, this, &levelSums, &bitVecArray, &SegTreeArray](yield_t &sub_yield) {
-            size_t levelStart = getLevelStart7(level);
-            size_t levelLength = getLevelLength7(level);
-
-            typename Duoram<RegXS>::Flat bitVecLevel(bitVecArray, tio, sub_yield, levelStart, levelLength);
-            typename Duoram<RegAS>::Flat segTreeLevel(SegTreeArray, tio, sub_yield, levelStart, levelLength);
-            
-            // Iterate from 1 to avoid the extra node (position 0 in each level)
-            for(size_t pos = 1; pos < levelLength; pos++) {
-                RegXS element = bitVecLevel[pos];
-                RegBS incl = element.bitat(0);
-                RegAS val = segTreeLevel[pos];
-                RegAS zero;
-                zero.set(0);
-
-                RegAS sum1;
-                mpc_select(tio, sub_yield, sum1, incl, zero, val);
-
-                levelSums[level].ashare += sum1.ashare;
-            }
-        });
-    }
-    
-    run_coroutines(tio, accumulation_coroutines);
-
-    // Combine all level sums
-    RegAS sum;
-    sum.set(0);
-    for(size_t level = 0; level < depth; level++) {
-        sum.ashare += levelSums[level].ashare;
-    }
-
-    auto accumulation_end = std::chrono::high_resolution_clock::now();
-    auto accumulation_duration = std::chrono::duration_cast<std::chrono::milliseconds>(accumulation_end - accumulation_start).count();
-    std::cout << "Step 3 (Sum Accumulation - Parallelized) Time: " << accumulation_duration << " ms" << std::endl;
+    RegAS sum = computeRangeSum(tio, mpcio, yield, left, right);
 
     #ifdef SEGTREE_VERBOSE
     value_t answer = mpc_reconstruct(tio, yield, sum);

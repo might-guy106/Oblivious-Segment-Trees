@@ -12,7 +12,7 @@ class SegmentTree7 {
     Duoram < RegAS > rightChildSibling; // odd index -> i-1 else 0
     Duoram < RegAS > parent;
 
-    void getBitVector(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, Duoram < RegXS > &bitVec, RegAS left, RegAS right);
+    RegAS computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS left, RegAS right);
 
     public:
 
