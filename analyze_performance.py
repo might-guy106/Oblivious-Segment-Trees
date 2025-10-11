@@ -32,6 +32,7 @@ def load_performance_data(csv_path):
 def analyze_single_experiment(df):
     """Analyze a single experiment's performance"""
     exp_id = df['experiment_id'].iloc[0]
+    mode = df['mode'].iloc[0] if 'mode' in df.columns else 'unknown'
     depth = df['depth'].iloc[0]
     updates = df['num_updates'].iloc[0]
     queries = df['num_queries'].iloc[0]
@@ -39,10 +40,11 @@ def analyze_single_experiment(df):
     # Create header panel
     header = Panel(
         f"[bold blue]Experiment:[/bold blue] {exp_id}\n"
+        f"[bold yellow]Mode:[/bold yellow] {mode}\n"
         f"[bold green]Configuration:[/bold green] depth={depth}, updates={updates}, queries={queries}",
         title="[bold cyan]Experiment Analysis[/bold cyan]",
         border_style="blue",
-        box=box.ROUNDED
+        box=box.SQUARE
     )
     console.print(header)
     
@@ -57,7 +59,7 @@ def analyze_single_experiment(df):
     if not update_data.empty:
         console.print("\n[bold magenta]--- Update Operations ---[/bold magenta]")
         
-        update_table = Table(title="Update Performance Metrics", box=box.ROUNDED)
+        update_table = Table(title="Update Performance Metrics", box=box.SQUARE)
         update_table.add_column("Metric", style="cyan", no_wrap=True)
         update_table.add_column("Average", style="green")
         update_table.add_column("Std Dev", style="yellow")
@@ -99,7 +101,7 @@ def analyze_single_experiment(df):
     if not query_data.empty:
         console.print("\n[bold magenta]--- Range Sum Query Operations ---[/bold magenta]")
         
-        query_table = Table(title="Query Performance Metrics", box=box.ROUNDED)
+        query_table = Table(title="Query Performance Metrics", box=box.SQUARE)
         query_table.add_column("Metric", style="cyan", no_wrap=True)
         query_table.add_column("Average", style="green")
         query_table.add_column("Std Dev", style="yellow")
@@ -164,14 +166,25 @@ def compare_experiments(csv_files):
     header = Panel(
         "[bold cyan]Comparing Multiple Experiments[/bold cyan]",
         border_style="cyan",
-        box=box.ROUNDED
+        box=box.SQUARE
     )
     console.print(header)
+    
+    # Extract version and depth helper function
+    def extract_version_and_depth(exp_id):
+        """Extract version (st8, st7) and depth from experiment ID"""
+        parts = exp_id.split('_')
+        if len(parts) >= 2 and parts[0].startswith('st') and parts[1].startswith('d'):
+            version = parts[0]  # e.g., "st8"
+            depth = int(parts[1][1:])  # e.g., 20 from "d20"
+            return version, depth
+        return "unknown", 0
     
     results = []
     for csv_file in track(csv_files, description="Processing experiments..."):
         df = load_performance_data(csv_file)
         exp_id = df['experiment_id'].iloc[0]
+        mode = df['mode'].iloc[0] if 'mode' in df.columns else 'unknown'
         depth = df['depth'].iloc[0]
         updates = df['num_updates'].iloc[0]
         queries = df['num_queries'].iloc[0]
@@ -183,9 +196,15 @@ def compare_experiments(csv_files):
         avg_update = update_data['value'].mean() if not update_data.empty else 0
         avg_query = query_data['value'].mean() if not query_data.empty else 0
         
+        # Extract version and depth
+        version, depth_num = extract_version_and_depth(exp_id)
+        
         results.append({
             'experiment_id': exp_id,
+            'mode': mode,
+            'version': version,
             'depth': depth,
+            'depth_num': depth_num,
             'updates': updates,
             'queries': queries,
             'avg_update_time': avg_update,
@@ -195,26 +214,69 @@ def compare_experiments(csv_files):
     
     comparison_df = pd.DataFrame(results)
     
-    # Create rich comparison table
-    comparison_table = Table(title="Experiment Comparison", box=box.ROUNDED)
-    comparison_table.add_column("Experiment ID", style="cyan", no_wrap=True)
-    comparison_table.add_column("Depth", style="magenta")
-    comparison_table.add_column("Updates", style="blue")
-    comparison_table.add_column("Queries", style="blue")
-    comparison_table.add_column("Avg Update Time (ms)", style="green")
-    comparison_table.add_column("Avg Query Time (ms)", style="yellow")
+    # Sort by mode first, then version, then by depth
+    comparison_df = comparison_df.sort_values(['mode', 'version', 'depth_num'])
     
-    for _, row in comparison_df.iterrows():
-        comparison_table.add_row(
-            row['experiment_id'],
-            str(row['depth']),
-            str(row['updates']),
-            str(row['queries']),
-            f"{row['avg_update_time']:.2f}",
-            f"{row['avg_query_time']:.2f}"
-        )
+    # Group by mode and version to create separate tables
+    modes = comparison_df['mode'].unique()
+    versions = comparison_df['version'].unique()
     
-    console.print(comparison_table)
+    for mode in modes:
+        mode_data = comparison_df[comparison_df['mode'] == mode]
+        if not mode_data.empty:
+            console.print(f"\n[bold purple]===== Mode: {mode.upper()} =====[/bold purple]")
+            
+            for version in versions:
+                version_data = mode_data[mode_data['version'] == version].sort_values('depth_num')
+                
+                if not version_data.empty:
+                    # Create mode and version-specific table
+                    version_table = Table(title=f"Segment Tree Version: {version.upper()} ({mode} mode)", box=box.SIMPLE)
+                    version_table.add_column("Experiment ID", style="cyan", no_wrap=True)
+                    version_table.add_column("Mode", style="purple")
+                    version_table.add_column("Depth", style="magenta")
+                    version_table.add_column("Updates", style="blue")
+                    version_table.add_column("Queries", style="blue")
+                    version_table.add_column("Avg Update Time (ms)", style="green")
+                    version_table.add_column("Avg Query Time (ms)", style="yellow")
+                    
+                    for _, row in version_data.iterrows():
+                        version_table.add_row(
+                            row['experiment_id'],
+                            row['mode'],
+                            str(row['depth']),
+                            str(row['updates']),
+                            str(row['queries']),
+                            f"{row['avg_update_time']:.2f}",
+                            f"{row['avg_query_time']:.2f}"
+                        )
+                    
+                    console.print(f"\n")
+                    console.print(version_table)
+    
+    # Also create overall comparison table
+    # console.print(f"\n")
+    # overall_table = Table(title="Overall Experiment Comparison", box=box.SIMPLE)
+    # overall_table.add_column("Experiment ID", style="cyan", no_wrap=True)
+    # overall_table.add_column("Version", style="red")
+    # overall_table.add_column("Depth", style="magenta")
+    # overall_table.add_column("Updates", style="blue")
+    # overall_table.add_column("Queries", style="blue")
+    # overall_table.add_column("Avg Update Time (ms)", style="green")
+    # overall_table.add_column("Avg Query Time (ms)", style="yellow")
+    
+    # for _, row in comparison_df.iterrows():
+    #     overall_table.add_row(
+    #         row['experiment_id'],
+    #         row['version'].upper(),
+    #         str(row['depth']),
+    #         str(row['updates']),
+    #         str(row['queries']),
+    #         f"{row['avg_update_time']:.2f}",
+    #         f"{row['avg_query_time']:.2f}"
+    #     )
+    
+    # console.print(overall_table)
     
     # Generate comparison plots
     plot_comparison(comparison_df)
@@ -229,47 +291,45 @@ def plot_comparison(comparison_df, output_dir='logs/plots'):
         console.print("[yellow]Warning: Need at least 2 experiments for comparison plots[/yellow]")
         return
     
-    # Extract version and sort by depth
-    def extract_version_and_depth(exp_id):
-        """Extract version (st8, st7) and depth from experiment ID"""
-        parts = exp_id.split('_')
-        if len(parts) >= 2 and parts[0].startswith('st') and parts[1].startswith('d'):
-            version = parts[0]  # e.g., "st8"
-            depth = int(parts[1][1:])  # e.g., 20 from "d20"
-            return version, depth
-        return "unknown", 0
-    
-    # Add version and depth columns for sorting and grouping
-    comparison_df['version'] = comparison_df['experiment_id'].apply(lambda x: extract_version_and_depth(x)[0])
-    comparison_df['depth_num'] = comparison_df['experiment_id'].apply(lambda x: extract_version_and_depth(x)[1])
-    
-    # Sort by version first, then by depth
-    comparison_df = comparison_df.sort_values(['version', 'depth_num'])
-    
-    # Group by version for line plots
+    # Version, mode and depth columns are already added in compare_experiments
+    # Group by version and mode for line plots
     versions = comparison_df['version'].unique()
-    colors = ['steelblue', 'coral', 'green', 'purple', 'orange', 'brown', 'pink', 'gray']
-    color_map = {version: colors[i % len(colors)] for i, version in enumerate(versions)}
+    modes = comparison_df['mode'].unique()
+    
+    # Create color map for version-mode combinations
+    colors = ['steelblue', 'coral', 'green', 'purple', 'orange', 'brown', 'pink', 'gray', 'red', 'blue']
+    color_idx = 0
+    color_map = {}
+    for version in versions:
+        for mode in modes:
+            color_map[f"{version}_{mode}"] = colors[color_idx % len(colors)]
+            color_idx += 1
     
     sns.set_style("whitegrid")
     
     # Plot 1: Average Update Times Comparison (Line Plot)
     fig, ax = plt.subplots(figsize=(12, 6))
     
-    # Plot lines for each version
+    # Plot lines for each version-mode combination
     for version in versions:
-        version_data = comparison_df[comparison_df['version'] == version].sort_values('depth_num')
-        if not version_data.empty:
-            ax.plot(version_data['depth_num'], version_data['avg_update_time'], 
-                   marker='o', label=version, linewidth=2, markersize=8,
-                   color=color_map[version])
+        for mode in modes:
+            version_mode_data = comparison_df[
+                (comparison_df['version'] == version) & 
+                (comparison_df['mode'] == mode)
+            ].sort_values('depth_num')
             
-            # Add value labels on points
-            for _, row in version_data.iterrows():
-                ax.annotate(f'{row["avg_update_time"]:.1f}ms', 
-                           (row['depth_num'], row['avg_update_time']),
-                           textcoords="offset points", xytext=(0,10), ha='center',
-                           fontsize=9, fontweight='bold')
+            if not version_mode_data.empty:
+                label = f"{version} ({mode})"
+                ax.plot(version_mode_data['depth_num'], version_mode_data['avg_update_time'], 
+                       marker='o', label=label, linewidth=2, markersize=8,
+                       color=color_map[f"{version}_{mode}"])
+                
+                # Add value labels on points
+                for _, row in version_mode_data.iterrows():
+                    ax.annotate(f'{row["avg_update_time"]:.1f}ms', 
+                               (row['depth_num'], row['avg_update_time']),
+                               textcoords="offset points", xytext=(0,10), ha='center',
+                               fontsize=9, fontweight='bold')
     
     ax.set_xlabel('Tree Depth', fontsize=12)
     ax.set_ylabel('Average Update Time (ms)', fontsize=12)
@@ -285,20 +345,26 @@ def plot_comparison(comparison_df, output_dir='logs/plots'):
     # Plot 2: Average Query Times Comparison (Line Plot)
     fig, ax = plt.subplots(figsize=(12, 6))
     
-    # Plot lines for each version
+    # Plot lines for each version-mode combination
     for version in versions:
-        version_data = comparison_df[comparison_df['version'] == version].sort_values('depth_num')
-        if not version_data.empty:
-            ax.plot(version_data['depth_num'], version_data['avg_query_time'], 
-                   marker='s', label=version, linewidth=2, markersize=8,
-                   color=color_map[version])
+        for mode in modes:
+            version_mode_data = comparison_df[
+                (comparison_df['version'] == version) & 
+                (comparison_df['mode'] == mode)
+            ].sort_values('depth_num')
             
-            # Add value labels on points
-            for _, row in version_data.iterrows():
-                ax.annotate(f'{row["avg_query_time"]:.1f}ms', 
-                           (row['depth_num'], row['avg_query_time']),
-                           textcoords="offset points", xytext=(0,10), ha='center',
-                           fontsize=9, fontweight='bold')
+            if not version_mode_data.empty:
+                label = f"{version} ({mode})"
+                ax.plot(version_mode_data['depth_num'], version_mode_data['avg_query_time'], 
+                       marker='s', label=label, linewidth=2, markersize=8,
+                       color=color_map[f"{version}_{mode}"])
+                
+                # Add value labels on points
+                for _, row in version_mode_data.iterrows():
+                    ax.annotate(f'{row["avg_query_time"]:.1f}ms', 
+                               (row['depth_num'], row['avg_query_time']),
+                               textcoords="offset points", xytext=(0,10), ha='center',
+                               fontsize=9, fontweight='bold')
     
     ax.set_xlabel('Tree Depth', fontsize=12)
     ax.set_ylabel('Average Query Time (ms)', fontsize=12)
@@ -316,30 +382,42 @@ def plot_comparison(comparison_df, output_dir='logs/plots'):
     
     # Update times subplot
     for version in versions:
-        version_data = comparison_df[comparison_df['version'] == version].sort_values('depth_num')
-        if not version_data.empty:
-            ax1.plot(version_data['depth_num'], version_data['avg_update_time'], 
-                    marker='o', label=version, linewidth=2, markersize=6,
-                    color=color_map[version])
+        for mode in modes:
+            version_mode_data = comparison_df[
+                (comparison_df['version'] == version) & 
+                (comparison_df['mode'] == mode)
+            ].sort_values('depth_num')
+            
+            if not version_mode_data.empty:
+                label = f"{version} ({mode})"
+                ax1.plot(version_mode_data['depth_num'], version_mode_data['avg_update_time'], 
+                        marker='o', label=label, linewidth=2, markersize=6,
+                        color=color_map[f"{version}_{mode}"])
     
     ax1.set_xlabel('Tree Depth', fontsize=11)
     ax1.set_ylabel('Average Update Time (ms)', fontsize=11)
     ax1.set_title('Average Update Times', fontsize=12, fontweight='bold')
-    ax1.legend(title='Version', fontsize=9)
+    ax1.legend(title='Version (Mode)', fontsize=9)
     ax1.grid(True, alpha=0.3)
     
     # Query times subplot
     for version in versions:
-        version_data = comparison_df[comparison_df['version'] == version].sort_values('depth_num')
-        if not version_data.empty:
-            ax2.plot(version_data['depth_num'], version_data['avg_query_time'], 
-                    marker='s', label=version, linewidth=2, markersize=6,
-                    color=color_map[version])
+        for mode in modes:
+            version_mode_data = comparison_df[
+                (comparison_df['version'] == version) & 
+                (comparison_df['mode'] == mode)
+            ].sort_values('depth_num')
+            
+            if not version_mode_data.empty:
+                label = f"{version} ({mode})"
+                ax2.plot(version_mode_data['depth_num'], version_mode_data['avg_query_time'], 
+                        marker='s', label=label, linewidth=2, markersize=6,
+                        color=color_map[f"{version}_{mode}"])
     
     ax2.set_xlabel('Tree Depth', fontsize=11)
     ax2.set_ylabel('Average Query Time (ms)', fontsize=11)
     ax2.set_title('Average Range Query Times', fontsize=12, fontweight='bold')
-    ax2.legend(title='Version', fontsize=9)
+    ax2.legend(title='Version (Mode)', fontsize=9)
     ax2.grid(True, alpha=0.3)
     
     plt.tight_layout()
@@ -450,26 +528,26 @@ def main():
         f"Found {len(csv_files)} experiment file(s) to analyze",
         title="[bold cyan]Segment Tree Performance Analyzer[/bold cyan]",
         border_style="green",
-        box=box.ROUNDED
+        box=box.SQUARE
     )
     console.print(welcome)
     
     # Analyze each experiment
-    for csv_file in csv_files:
-        console.print(f"\n[bold blue]Processing:[/bold blue] [cyan]{csv_file}[/cyan]")
-        df = load_performance_data(csv_file)
-        analyze_single_experiment(df)
+    # for csv_file in csv_files:
+    #     console.print(f"\n[bold blue]Processing:[/bold blue] [cyan]{csv_file}[/cyan]")
+    #     df = load_performance_data(csv_file)
+    #     analyze_single_experiment(df)
         
-        # Generate plots
-        try:
-            plot_performance(df)
-        except Exception as e:
-            console.print(f"[yellow]Warning: Could not generate plots: {e}[/yellow]")
+    #     # Generate plots
+    #     try:
+    #         plot_performance(df)
+    #     except Exception as e:
+    #         console.print(f"[yellow]Warning: Could not generate plots: {e}[/yellow]")
     
     # Compare if multiple experiments
-    if len(csv_files) > 1:
-        console.print("\n" + "="*60)
-        compare_experiments(csv_files)
+    
+    console.print("\n" + "="*60)
+    compare_experiments(csv_files)
 
 if __name__ == "__main__":
     main()

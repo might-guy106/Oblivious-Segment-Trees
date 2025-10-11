@@ -530,7 +530,7 @@ void SegTree8(MPCIO &mpcio, const PRACOptions &opts, char **args) {
     std::string experiment_id = exp_id_stream.str();
     
     // Initialize logger (only player 0 will actually create log files)
-    PerformanceLogger logger(experiment_id, depth, n_updates, n_queries, tio.player());
+    PerformanceLogger logger(experiment_id, depth, n_updates, n_queries, tio.player(), tio.getMode());
 
     run_coroutines(tio, [&tio, &mpcio, len, depth, n_updates, n_queries, &logger] (yield_t &yield) {
         

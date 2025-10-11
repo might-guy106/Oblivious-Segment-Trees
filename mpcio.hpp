@@ -469,6 +469,7 @@ public:
     // Accessors
 
     inline int player() { return mpcio.player; }
+    inline ProcessingMode getMode() { return mpcio.mode; }
     inline bool preprocessing() { return mpcio.mode == MODE_PREPROCESSING; }
     inline bool is_server() { return mpcio.player == 2; }
     inline size_t& aes_ops() { return mpcio.aes_ops[thread_num]; }
