@@ -92,7 +92,7 @@ run_three_phases() {
     tmux send-keys -t "$SESSION_NAME:0.2" "bash -lc 'RESOURCES=\$(cat $RESOURCES_FILE); echo \"SHELL=\$SHELL\"; echo \"BASH_VERSION=\${BASH_VERSION:-none}\"; set -- \$RESOURCES; echo \"TokenCount=\$#\"; printf \"[arg:%s]\\n\" \"\$@\"; exec ./prac -t 8 -p 2 localhost localhost \"\$@\"'" C-m
 
     # Wait for Phase 2 to complete and then run Phase 3
-    tmux send-keys -t "$SESSION_NAME:0.0" "echo 'Phase 2 completed. Waiting 3 seconds before Phase 3...'; sleep 3" C-m
+    # tmux send-keys -t "$SESSION_NAME:0.0" "echo 'Phase 2 completed. Waiting 3 seconds before Phase 3...'; sleep 3" C-m
 
     # Phase 3: Online mode (no -o flag, using precomputed resources)
     tmux send-keys -t "$SESSION_NAME:0.0" "echo '=== PHASE 3: Online mode with precomputed resources ==='" C-m
@@ -107,7 +107,7 @@ run_three_phases() {
     tmux send-keys -t "$SESSION_NAME:0.2" "./prac -t 8 2 localhost localhost $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES" C-m
 
     # Cleanup and detach after Phase 3
-    tmux send-keys -t "$SESSION_NAME:0.0" "echo 'All 3 phases completed! Cleaning up...'; rm -f $RESOURCES_FILE /tmp/phase1_output_${SESSION_NAME}.log; echo 'Detaching session in 2 seconds...'; sleep 100; tmux detach-client -s \"$SESSION_NAME\"" C-m
+    tmux send-keys -t "$SESSION_NAME:0.0" "echo 'All 3 phases completed! Cleaning up...'; rm -f $RESOURCES_FILE /tmp/phase1_output_${SESSION_NAME}.log; rm -rf *t0; echo 'Detaching session in 2 seconds...'; sleep 2; tmux detach-client -s \"$SESSION_NAME\"" C-m
 }
 
 # Execute the three phases
