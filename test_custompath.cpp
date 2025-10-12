@@ -79,18 +79,6 @@ void test_custompath(MPCIO &mpcio, const PRACOptions &opts) {
                       << std::get<1>(reconstructed_tuples3[i]).share() << ", "
                       << std::get<2>(reconstructed_tuples3[i]).share() << ")" << std::endl;
         }
-
-        for(int i = 1; i < tree_size; ++i) {
-            std::tuple<RegAS, RegAS, RegAS> curNode = flat_tuple3[i];
-            std::tuple<RegAS, RegAS, RegAS> prevNode = flat_tuple3[i-1];
-            curNode = std::make_tuple(
-                std::get<0>(curNode) + std::get<0>(prevNode),
-                std::get<1>(curNode) + std::get<1>(prevNode),
-                std::get<2>(curNode) + std::get<2>(prevNode)
-            );
-            flat_tuple3[i] = curNode;
-        }
-        
         // ========== TEST 2: Original Duoram with single RegAS ==========
         std::cout << "\n[Player " << player << "] === Testing Duoram<RegAS> ===" << std::endl;
         
