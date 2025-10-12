@@ -5,7 +5,7 @@
 # Phase 2: Preprocessing mode (-p) to precompute resources
 # Phase 3: Online mode to run actual experiment with precomputed resources
 #
-# Usage: ./run_experiment_tmux.sh <depth> <updates> <queries> [variant]
+# Usage: ./run_experiment_tmux.sh <depth> <updates> <queries> [variant] [threads]
 #
 # Requirements: tmux must be installed
 # Install: sudo apt-get install tmux  (Ubuntu/Debian)
@@ -24,6 +24,7 @@ DEPTH=${1:-20}
 UPDATES=${2:-10}
 QUERIES=${3:-10}
 VARIANT=${4:-segmenttree8}
+THREADS=${5:-8}
 
 # Create session name with timestamp
 SESSION_NAME="segtree_exp_$(date +%Y%m%d_%H%M%S)"
@@ -36,6 +37,7 @@ echo "Variant: $VARIANT"
 echo "Depth: $DEPTH"
 echo "Updates: $UPDATES"
 echo "Queries: $QUERIES"
+echo "Threads: $THREADS"
 echo "Session: $SESSION_NAME"
 echo "========================================="
 echo "Phase 1: Online-only mode (resource detection)"
@@ -62,15 +64,15 @@ run_three_phases() {
     # Phase 1: Online-only mode (-o flag)
     # Pane 1 (middle): Player 0 - Logger (capture resources)
     tmux send-keys -t "$SESSION_NAME:0.0" "echo '=== PHASE 1: Player 0 (Logger) - Online-only mode ==='; sleep 1" C-m
-    tmux send-keys -t "$SESSION_NAME:0.0" "./prac -o -t 8 0 $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES 2>&1 | tee /tmp/phase1_output_${SESSION_NAME}.log" C-m
+    tmux send-keys -t "$SESSION_NAME:0.0" "./prac -o -t $THREADS 0 $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES 2>&1 | tee /tmp/phase1_output_${SESSION_NAME}.log" C-m
 
     # Pane 2 (right): Player 1
     tmux send-keys -t "$SESSION_NAME:0.1" "echo '=== PHASE 1: Player 1 - Online-only mode ==='; sleep 2" C-m
-    tmux send-keys -t "$SESSION_NAME:0.1" "./prac -o -t 8 1 localhost $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES" C-m
+    tmux send-keys -t "$SESSION_NAME:0.1" "./prac -o -t $THREADS 1 localhost $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES" C-m
 
     # Pane 0 (left): Player 2 - Server
     tmux send-keys -t "$SESSION_NAME:0.2" "echo '=== PHASE 1: Player 2 (Server) - Online-only mode ==='; sleep 3" C-m
-    tmux send-keys -t "$SESSION_NAME:0.2" "./prac -o -t 8 2 localhost localhost $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES" C-m
+    tmux send-keys -t "$SESSION_NAME:0.2" "./prac -o -t $THREADS 2 localhost localhost $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES" C-m
 
     # Wait for Phase 1 to complete and then run Phase 2
     tmux send-keys -t "$SESSION_NAME:0.0" "echo 'Phase 1 completed. Extracting resource requirements...'" C-m
@@ -83,13 +85,13 @@ run_three_phases() {
 
     # Start preprocessing - Player 0 must start first to accept connections
     tmux send-keys -t "$SESSION_NAME:0.0" "echo '=== PHASE 2: Player 0 - Preprocessing ==='; sleep 1" C-m
-    tmux send-keys -t "$SESSION_NAME:0.0" "./prac -t 8 -p 0" C-m
+    tmux send-keys -t "$SESSION_NAME:0.0" "./prac -t $THREADS -p 0" C-m
 
     tmux send-keys -t "$SESSION_NAME:0.1" "echo '=== PHASE 2: Player 1 - Preprocessing ==='; sleep 2" C-m
-    tmux send-keys -t "$SESSION_NAME:0.1" "./prac -t 8 -p 1 localhost" C-m
+    tmux send-keys -t "$SESSION_NAME:0.1" "./prac -t $THREADS -p 1 localhost" C-m
 
     tmux send-keys -t "$SESSION_NAME:0.2" "echo '=== PHASE 2: Player 2 (Server) - Preprocessing ==='; sleep 3" C-m
-    tmux send-keys -t "$SESSION_NAME:0.2" "bash -lc 'RESOURCES=\$(cat $RESOURCES_FILE); echo \"SHELL=\$SHELL\"; echo \"BASH_VERSION=\${BASH_VERSION:-none}\"; set -- \$RESOURCES; echo \"TokenCount=\$#\"; printf \"[arg:%s]\\n\" \"\$@\"; exec ./prac -t 8 -p 2 localhost localhost \"\$@\"'" C-m
+    tmux send-keys -t "$SESSION_NAME:0.2" "bash -lc 'RESOURCES=\$(cat $RESOURCES_FILE); echo \"SHELL=\$SHELL\"; echo \"BASH_VERSION=\${BASH_VERSION:-none}\"; set -- \$RESOURCES; echo \"TokenCount=\$#\"; printf \"[arg:%s]\\n\" \"\$@\"; exec ./prac -t $THREADS -p 2 localhost localhost \"\$@\"'" C-m
 
     # Wait for Phase 2 to complete and then run Phase 3
     # tmux send-keys -t "$SESSION_NAME:0.0" "echo 'Phase 2 completed. Waiting 3 seconds before Phase 3...'; sleep 3" C-m
@@ -98,13 +100,13 @@ run_three_phases() {
     tmux send-keys -t "$SESSION_NAME:0.0" "echo '=== PHASE 3: Online mode with precomputed resources ==='" C-m
 
     tmux send-keys -t "$SESSION_NAME:0.0" "echo '=== PHASE 3: Player 0 (Logger) - Online mode ==='; sleep 1" C-m
-    tmux send-keys -t "$SESSION_NAME:0.0" "./prac -t 8 0 $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES" C-m
+    tmux send-keys -t "$SESSION_NAME:0.0" "./prac -t $THREADS 0 $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES" C-m
 
     tmux send-keys -t "$SESSION_NAME:0.1" "echo '=== PHASE 3: Player 1 - Online mode ==='; sleep 2" C-m
-    tmux send-keys -t "$SESSION_NAME:0.1" "./prac -t 8 1 localhost $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES" C-m
+    tmux send-keys -t "$SESSION_NAME:0.1" "./prac -t $THREADS 1 localhost $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES" C-m
 
     tmux send-keys -t "$SESSION_NAME:0.2" "echo '=== PHASE 3: Player 2 (Server) - Online mode ==='; sleep 3" C-m
-    tmux send-keys -t "$SESSION_NAME:0.2" "./prac -t 8 2 localhost localhost $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES" C-m
+    tmux send-keys -t "$SESSION_NAME:0.2" "./prac -t $THREADS 2 localhost localhost $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES" C-m
 
     # Cleanup and detach after Phase 3
     tmux send-keys -t "$SESSION_NAME:0.0" "echo 'All 3 phases completed! Cleaning up...'; rm -f $RESOURCES_FILE /tmp/phase1_output_${SESSION_NAME}.log; rm -rf *t0; echo 'Detaching session in 2 seconds...'; sleep 2; tmux detach-client -s \"$SESSION_NAME\"" C-m
