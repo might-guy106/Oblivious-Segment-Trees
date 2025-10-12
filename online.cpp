@@ -20,7 +20,7 @@
 #include "segmentTree7.hpp"
 #include "segmentTree8.hpp"
 #include "segmentTreeClean.hpp"
-#include "test_custompath.hpp"
+// #include "test_custompath.hpp"
 
 static void online_test(MPCIO &mpcio,
     const PRACOptions &opts, char **args)
@@ -1743,10 +1743,12 @@ void online_main(MPCIO &mpcio, const PRACOptions &opts, char **args)
     } else if (!strcmp(*args, "segmenttreeClean")) {
         ++args;
         SegTreeClean(mpcio, opts, args);
-    } else if (!strcmp(*args, "testCustomPath")) {
-        ++args;
-        test_custompath(mpcio, opts);
-    } else {
+    }
+    // else if (!strcmp(*args, "testCustomPath")) {
+    //     ++args;
+    //     test_custompath(mpcio, opts);
+    // }
+    else {
         std::cerr << "Unknown mode " << *args << "\n";
     }
 }

@@ -83,41 +83,41 @@ Duoram<T>::Path::Path(Shape &parent, MPCTIO &tio, yield_t &yield,
 }
 
 // Constructor for the CustomPath shape
-template <typename T>
-Duoram<T>::CustomPath::CustomPath(Shape &parent, MPCTIO &tio, yield_t &yield,
-    size_t start_index, std::function<size_t(size_t)> compute_parent_func) :
-    Shape(parent, parent.duoram, tio, yield),
-    start_index(start_index),
-    compute_parent(compute_parent_func)
-{
-    size_t parentsize = parent.size();
-    assert(start_index > 0 && start_index < parentsize);
-
-    // Build the path from start_index to root (index 1 or 0)
-    // using the custom parent logic
-    std::vector<size_t> temp_path;
-    size_t cur_node = start_index;
-    
-    temp_path.push_back(cur_node);
-    
-    // Traverse up to root using custom parent logic
-    while (cur_node > 1) {
-        cur_node = compute_parent(cur_node);
-        if (cur_node > 0 && cur_node < parentsize) {
-            temp_path.push_back(cur_node);
-        } else {
-            break;
-        }
-    }
-    
-    // Reverse the path so it goes from root to start_index
-    // (This matches the Path shape behavior)
-    path_indices.reserve(temp_path.size());
-    for (auto it = temp_path.rbegin(); it != temp_path.rend(); ++it) {
-        path_indices.push_back(*it);
-    }
-    
-    this->set_shape_size(path_indices.size());
-}
+//    template <typename T>
+//    Duoram<T>::CustomPath::CustomPath(Shape &parent, MPCTIO &tio, yield_t &yield,
+//        size_t start_index, std::function<size_t(size_t)> compute_parent_func) :
+//        Shape(parent, parent.duoram, tio, yield),
+//        start_index(start_index),
+//        compute_parent(compute_parent_func)
+//    {
+//        size_t parentsize = parent.size();
+//        assert(start_index > 0 && start_index < parentsize);
+//
+//        // Build the path from start_index to root (index 1 or 0)
+//        // using the custom parent logic
+//        std::vector<size_t> temp_path;
+//        size_t cur_node = start_index;
+//
+//        temp_path.push_back(cur_node);
+//
+//        // Traverse up to root using custom parent logic
+//        while (cur_node > 1) {
+//            cur_node = compute_parent(cur_node);
+//            if (cur_node > 0 && cur_node < parentsize) {
+//                temp_path.push_back(cur_node);
+//            } else {
+//                break;
+//            }
+//        }
+//
+//        // Reverse the path so it goes from root to start_index
+//        // (This matches the Path shape behavior)
+//        path_indices.reserve(temp_path.size());
+//        for (auto it = temp_path.rbegin(); it != temp_path.rend(); ++it) {
+//            path_indices.push_back(*it);
+//        }
+//
+//        this->set_shape_size(path_indices.size());
+//    }
 
 #endif
