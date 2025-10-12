@@ -6,6 +6,9 @@
 #include "shapes.hpp"
 #include "heap.hpp"
 
+// #define HEAP_VERBOSE
+
+
 /*
 The heap datastructure is stored in an array with the starting index as 1 (and not 0)
 For nodes stored in index i of the array, the parent is stored at i/2 and
@@ -177,7 +180,7 @@ void MinHeap::insert_optimized(MPCTIO &tio, yield_t & yield, RegAS val) {
 // Step 2: Starting from the leaf (the newly added element), compare it with its parent.
 // Perform 1 oblivious comparison to determine if the parent is greater than the child.
 // Step 3: If the parent is greater than the child, swap them obliviously to maintain the heap property.
-// This swap ensures that the parent is always greater than both its children.
+// This swap ensures that the parent is always smaller than both its children.
 // Step 4: Continue moving up the tree by repeating steps 2 and 3 until we reach the root.
 // This process ensures that the newly inserted element is correctly positioned in the heap.
 // The total cost of the insert protocol is log(num_items) oblivious comparisons and log(num_items) oblivious swaps.

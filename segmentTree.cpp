@@ -7,7 +7,7 @@
 #include "shapes.hpp"
 #include "segmentTree.hpp"
 
-// #define SEGTREE_VERBOSE
+#define SEGTREE_VERBOSE
 // To enable timing/stat instrumentation define SEGTREE_VERBOSE2
 // #define SEGTREE_VERBOSE2
 

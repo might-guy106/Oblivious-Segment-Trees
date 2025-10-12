@@ -6,13 +6,14 @@
 #include "cell.hpp"
 #include "rdpf.hpp"
 #include "shapes.hpp"
-#include "segmentTree7.hpp"
+#include "segmentTree8.hpp"
+#include "logger.hpp"
 
 // uncomment to enable intermediate reconstructions and logging
 // #define SEGTREE_VERBOSE
 
 /*
-The segment tree data structure in SegmentTree7 uses a LEVEL-WISE RESTRUCTURED ARRAY layout 
+The segment tree data structure in SegmentTree8 uses a LEVEL-WISE RESTRUCTURED ARRAY layout 
 
 ARRAY STRUCTURE:
 Unlike the traditional binary tree layout, this version reorganizes the data structure where:
@@ -37,8 +38,8 @@ Where:
 - Position 1+ in each level: Actual segment tree nodes
 
 MATHEMATICAL FORMULAS:
-- Level k start index: getLevelStart7(k) = 2^k + k - 1
-- Level k length: getLevelLength7(k) = 2^k + 1  
+- Level k start index: getLevelStart8(k) = 2^k + k - 1
+- Level k length: getLevelLength8(k) = 2^k + 1  
 - Total array size: 2^d + d - 1
 
 ADVANTAGES OF LEVEL-WISE RE-STRUCTURE:
@@ -80,7 +81,7 @@ Algorithm Overview:
 
 
 // Helper function which returns the level given the index in the global Segment Tree array  
-size_t findLevel7(size_t index, size_t depth) {
+size_t findLevel8(size_t index, size_t depth) {
     for (size_t level = 0; level < depth; level++) {
         size_t levelStart = (1ULL << level) + level - 1;
         size_t levelEnd = (1ULL << (level + 1)) + level - 1;
@@ -92,24 +93,24 @@ size_t findLevel7(size_t index, size_t depth) {
 }
 
 // Helper functions which returns the start index in the global Segment Tree array for a given level
-size_t getLevelStart7(size_t level) {
+size_t getLevelStart8(size_t level) {
     return (1ULL << level) + level - 1;  // 2^level + level - 1
 }
 
 // Helper function which returns the length of a given level.
-size_t getLevelLength7(size_t level) {
+size_t getLevelLength8(size_t level) {
     return (1ULL << level) + 1;  // 2^level + 1
 }
 
 // Given an index in the global Segment Tree array, return its parent index in its level 
-size_t parentIndex7(size_t index, size_t depth) {
-    size_t currentLevel = findLevel7(index, depth);
+size_t parentIndex8(size_t index, size_t depth) {
+    size_t currentLevel = findLevel8(index, depth);
     
     if (currentLevel <= 0) {
         return index;  // Root level
     }
     
-    size_t levelStart = getLevelStart7(currentLevel);
+    size_t levelStart = getLevelStart8(currentLevel);
     
     // If it's the extra node, return itself
     if (index == levelStart) {
@@ -124,14 +125,14 @@ size_t parentIndex7(size_t index, size_t depth) {
 }
 
 // Given an index in the global Segment Tree array, return its left child sibling index in its level (if index is not a left child then it returns 0)
-size_t getLeftChildSiblingIndex7(size_t index, size_t depth) {
-    size_t currentLevel = findLevel7(index, depth);
+size_t getLeftChildSiblingIndex8(size_t index, size_t depth) {
+    size_t currentLevel = findLevel8(index, depth);
     
     if (currentLevel <= 0) {
         return index;  // Root level, return itself
     }
     
-    size_t levelStart = getLevelStart7(currentLevel);
+    size_t levelStart = getLevelStart8(currentLevel);
     
     // If it's the extra node, return itself
     if (index == levelStart) {
@@ -149,14 +150,14 @@ size_t getLeftChildSiblingIndex7(size_t index, size_t depth) {
 }
 
 // Given an index in the global Segment Tree array, return its right child sibling index in its level (if index is not a right child then it returns 0)
-size_t getRightChildSiblingIndex7(size_t index, size_t depth) {
-    size_t currentLevel = findLevel7(index, depth);
+size_t getRightChildSiblingIndex8(size_t index, size_t depth) {
+    size_t currentLevel = findLevel8(index, depth);
 
     if (currentLevel <= 0) {
         return index;  // Root level, return itself
     }
     
-    size_t levelStart = getLevelStart7(currentLevel);
+    size_t levelStart = getLevelStart8(currentLevel);
     
     // If it's the extra node, return itself
     if (index == levelStart) {
@@ -173,7 +174,7 @@ size_t getRightChildSiblingIndex7(size_t index, size_t depth) {
     }
 }
 
-void SegmentTree7::init(MPCTIO &tio, yield_t & yield) {
+void SegmentTree8::init(MPCTIO &tio, yield_t & yield) {
     
     // Create and initialize  a helper array which is used to initialize the Segment Tree Duoram
     std::vector<uint64_t> segTree(num_items, 0);
@@ -195,8 +196,8 @@ void SegmentTree7::init(MPCTIO &tio, yield_t & yield) {
     
     // Map original tree to new level-wise structure
     for (size_t level = 0; level < depth; level++) {
-        size_t levelStart = getLevelStart7(level);
-        size_t levelLength = getLevelLength7(level);
+        size_t levelStart = getLevelStart8(level);
+        size_t levelLength = getLevelLength8(level);
         
         // Set extra node (position 0) to 0
         segTree[levelStart] = 0;
@@ -209,62 +210,44 @@ void SegmentTree7::init(MPCTIO &tio, yield_t & yield) {
         }
     }
     
-    // Initialize SegTreeArray Duoram with the above created segTree array
+    // Initialize Duoram with SegTreeNode structs (value, parent, leftChildSibling, rightChildSibling)
     auto SegTreeArray = oram.flat(tio, yield);
-    SegTreeArray.init([this, &segTree] (size_t i) -> size_t {
+    SegTreeArray.init([this, &segTree] (size_t i) -> SegTreeNode {
+        SegTreeNode node;
+        
         if (i < num_items) {
-            return segTree[i];
+            node.value.set(segTree[i]);
+            node.parent.set(parentIndex8(i, depth));
+            node.leftChildSibling.set(getLeftChildSiblingIndex8(i, depth));
+            node.rightChildSibling.set(getRightChildSiblingIndex8(i, depth));
         } else {
-            return size_t(0x7fffffffffffffff);
+            node.value.set(0);
+            node.parent.set(0);
+            node.leftChildSibling.set(0);
+            node.rightChildSibling.set(0);
         }
-    });
-
-    // Initialize leftChildSiblingArray with the help of getLeftChildSiblingIndex7 function
-    auto leftChildSiblingArray = leftChildSibling.flat(tio, yield);
-    leftChildSiblingArray.init([this] (size_t i) -> size_t {
-        if (i < num_items) {
-            return getLeftChildSiblingIndex7(i, depth);
-        } else {
-            return size_t(0);
-        }
-    });
-
-    // Initialize rightChildSiblingArray with the help of getRightChildSiblingIndex7 function
-    auto rightChildSiblingArray = rightChildSibling.flat(tio, yield);
-    rightChildSiblingArray.init([this] (size_t i) -> size_t {
-        if (i < num_items) {
-            return getRightChildSiblingIndex7(i, depth); // if even (right) keep sibling else 0
-        } else {
-            return size_t(0);
-        }
-    });
-
-    // Initialize parentArray with the help of parentIndex7 function
-    auto parentArray = parent.flat(tio, yield);
-    parentArray.init([this] (size_t i) -> size_t {
-        if (i < num_items) {
-            return parentIndex7(i, depth);
-        } else {
-            return size_t(0);
-        }
+        
+        return node;
     });
 }
 
 // helper function to reconstruct and print SegTreeArray
-void SegmentTree7::printSegmentTree(MPCTIO &tio, yield_t & yield) {
+void SegmentTree8::printSegmentTree(MPCTIO &tio, yield_t & yield) {
     auto SegTreeArray = oram.flat(tio, yield);
     auto SegTreeRecons = SegTreeArray.reconstruct();
     for(size_t i=0; i<num_items; i++) {
-        std::cout << "SegTreeArray[" << i << "] = " << SegTreeRecons[i].share() << std::endl;
+        std::cout << "SegTreeArray[" << i << "] = (value: " 
+                  << SegTreeRecons[i].value.share() << ", parent: "
+                  << SegTreeRecons[i].parent.share() << ", leftSib: "
+                  << SegTreeRecons[i].leftChildSibling.share() << ", rightSib: "
+                  << SegTreeRecons[i].rightChildSibling.share() << ")" << std::endl;
     }
 }
 
 // Main function to compute range sum directly (optimized - no intermediate bitVec)
-RegAS SegmentTree7::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS leftLevelIndex, RegAS rightLevelIndex) {
+RegAS SegmentTree8::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS leftLevelIndex, RegAS rightLevelIndex,
+                                    PerformanceLogger* logger, size_t operation_id) {
 
-    auto leftChildSiblingArray = leftChildSibling.flat(tio, yield);
-    auto rightChildSiblingArray = rightChildSibling.flat(tio, yield);
-    auto parentArray = parent.flat(tio, yield);
     auto SegTreeArray = oram.flat(tio, yield);
 
     RegBS isValid; // isValid = right >= left
@@ -272,28 +255,35 @@ RegAS SegmentTree7::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, 
     RegAS diff = rightLevelIndex - leftLevelIndex;
     auto[lt_c1, eq_c1, gt_c1] = cdpf.compare(tio, yield, diff, tio.aes_ops());
     mpc_or(tio, yield, isValid, gt_c1, eq_c1); // isValid = (left <= right)
+    RegBS isDifferent = gt_c1; // isDifferent = right > left
 
 
     // Step 1: Pre-compute the path indices for all levels
     auto start_time = std::chrono::high_resolution_clock::now();
     // Store leftLevelIndex and rightLevelIndex for each level
-    std::vector<RegAS> leftPath(depth);
-    std::vector<RegAS> rightPath(depth);
-    
-    leftPath[depth - 1] = leftLevelIndex;  // Start at leaf level
-    rightPath[depth - 1] = rightLevelIndex;
+    std::vector<SegTreeNode> leftPath(depth);
+    std::vector<SegTreeNode> rightPath(depth);
+    std::vector<RegAS> leftPathIndex(depth);
+    std::vector<RegAS> rightPathIndex(depth);
     
     // Compute parent indices for all levels going up the tree
-    for(uint32_t i = 1; i < depth; i++) {
+    for(uint32_t i = 1; i <= depth; i++) {
         size_t level = depth - i;  // Current level (leaf to root)
-        size_t levelStart = getLevelStart7(level);
-        size_t levelLength = getLevelLength7(level);
+        size_t levelStart = getLevelStart8(level);
+        size_t levelLength = getLevelLength8(level);
         
-        typename Duoram < RegAS > ::Flat parentLevel(parentArray, tio, yield, levelStart, levelLength);
+        typename Duoram<SegTreeNode>::Flat segTreeLevel(SegTreeArray, tio, yield, levelStart, levelLength);
         
-        // Read parent indices for next level
-        leftPath[level - 1] = parentLevel[leftPath[level]];
-        rightPath[level - 1] = parentLevel[rightPath[level]];
+        // Read parent indices from the nodes
+        SegTreeNode leftNode = segTreeLevel[leftLevelIndex];
+        SegTreeNode rightNode = segTreeLevel[rightLevelIndex];
+        leftPath[level] = leftNode;
+        rightPath[level] = rightNode;
+        leftPathIndex[level] = leftLevelIndex;
+        rightPathIndex[level] = rightLevelIndex;
+
+        leftLevelIndex = leftNode.parent;
+        rightLevelIndex = rightNode.parent;
     }
 
     auto step1_end_time = std::chrono::high_resolution_clock::now();
@@ -308,12 +298,12 @@ RegAS SegmentTree7::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, 
     for(uint32_t i = 1; i <= depth; i++) {
         size_t level = depth - i;
 
-        sum_coroutines.emplace_back([&tio, level, i, this, &isValid, &leftPath, &rightPath, 
-                                    &leftChildSiblingArray, &rightChildSiblingArray, &SegTreeArray, &levelSums](yield_t &sub_yield) {
-            size_t levelStart = getLevelStart7(level);
-            size_t levelLength = getLevelLength7(level);
+        sum_coroutines.emplace_back([&tio, level, i, this, &isValid, &isDifferent, &leftPath, &rightPath, &leftPathIndex, &rightPathIndex, 
+                                    &SegTreeArray, &levelSums](yield_t &sub_yield) {
+            size_t levelStart = getLevelStart8(level);
+            size_t levelLength = getLevelLength8(level);
             
-            // Create variables fresh in each coroutine to avoid sharing issues
+            // Create incl fresh in each coroutine to avoid sharing issues
             RegXS incl;
             incl.set(tio.player()==0 ? 1 : 0);
             RegAS one;
@@ -321,18 +311,18 @@ RegAS SegmentTree7::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, 
             RegAS zero;
             zero.set(0);
             
-            typename Duoram < RegAS > ::Flat leftChildSiblingLevel(leftChildSiblingArray, tio, sub_yield, levelStart, levelLength);
-            typename Duoram < RegAS > ::Flat rightChildSiblingLevel(rightChildSiblingArray, tio, sub_yield, levelStart, levelLength);
-            typename Duoram < RegAS > ::Flat segTreeLevel(SegTreeArray, tio, sub_yield, levelStart, levelLength);
+            typename Duoram<SegTreeNode>::Flat segTreeLevel(SegTreeArray, tio, sub_yield, levelStart, levelLength);
             
-            // Read all necessary values for this level
-            RegAS leftSibling = leftChildSiblingLevel[leftPath[level]];
-            RegAS rightSibling = rightChildSiblingLevel[rightPath[level]];
+            // Read sibling values from the stored nodes
+            RegAS leftIndex = leftPathIndex[level];
+            RegAS rightIndex = rightPathIndex[level];
+            RegAS leftSibling = leftPath[level].leftChildSibling;
+            RegAS rightSibling = rightPath[level].rightChildSibling;
 
             // --- if left and right are adjacent or same then the marking of nodes is already completed so we set isDone here ---
             RegBS isNotDone;
             CDPF cdpf1 = tio.cdpf(sub_yield);
-            RegAS diff1 = rightPath[level] - (leftPath[level] + one); // diff1 = right - (left + 1)
+            RegAS diff1 = rightIndex - (leftIndex + one); // diff1 = right - (left + 1)
             auto[lt_c1, eq_c1, gt_c1] = cdpf1.compare(tio, sub_yield, diff1, tio.aes_ops());
             isNotDone = gt_c1; // isNotDone = (right > left + 1)
 
@@ -341,32 +331,35 @@ RegAS SegmentTree7::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, 
             mpc_and(tio, sub_yield, Check, isNotDone, isValid); // Check = isNotDone AND isValid
 
             // Add left sibling value if Check is true
-            RegAS leftSibValue = segTreeLevel[leftSibling];
+            SegTreeNode leftSibNode = segTreeLevel[leftSibling];
+            RegAS leftSibValue = leftSibNode.value;
             RegAS leftContribution;
             mpc_select(tio, sub_yield, leftContribution, Check, zero, leftSibValue);
             levelSums[level].ashare += leftContribution.ashare;
 
             // Add right sibling value if Check is true
-            RegAS rightSibValue = segTreeLevel[rightSibling];
+            SegTreeNode rightSibNode = segTreeLevel[rightSibling];
+            RegAS rightSibValue = rightSibNode.value;
             RegAS rightContribution;
             mpc_select(tio, sub_yield, rightContribution, Check, zero, rightSibValue);
             levelSums[level].ashare += rightContribution.ashare;
 
-            // --- if its the leaf level then we also have to include the leftPath[level] and rightPath[level] themselves ---
+            // --- if its the leaf level then we also have to include the leftIndex and rightIndex themselves ---
             if(i == 1)
             {   
-                // Always add left leaf value
-                RegAS leftLeafValue = segTreeLevel[leftPath[level]];
+                SegTreeNode leftLeafNode = segTreeLevel[leftIndex];
+                RegAS leftLeafValue = leftLeafNode.value;
                 levelSums[level].ashare += leftLeafValue.ashare;
 
-                // Only add right leaf if it's different from left (to avoid double counting)
-                RegBS isDifferent;
-                CDPF cdpf2 = tio.cdpf(sub_yield);
-                RegAS diff2 = rightPath[level] - leftPath[level];
-                auto[lt_c2, eq_c2, gt_c2] = cdpf2.compare(tio, sub_yield, diff2, tio.aes_ops());
-                isDifferent = gt_c2; // isDifferent = (right > left)
-
-                RegAS rightLeafValue = segTreeLevel[rightPath[level]];
+                // // Only add right leaf if it's different from left (to avoid double counting)
+                // // When leftIndex == rightIndex, we should only add once
+                // CDPF cdpf2 = tio.cdpf(sub_yield);
+                // RegAS diff2 = rightIndex - leftIndex;
+                // auto[lt_c2, eq_c2, gt_c2] = cdpf2.compare(tio, sub_yield, diff2, tio.aes_ops());
+                // RegBS isDifferent = gt_c2; // isDifferent = (rightIndex > leftIndex)
+                
+                SegTreeNode rightLeafNode = segTreeLevel[rightIndex];
+                RegAS rightLeafValue = rightLeafNode.value;
                 RegAS rightLeafContribution;
                 mpc_select(tio, sub_yield, rightLeafContribution, isDifferent, zero, rightLeafValue);
                 levelSums[level].ashare += rightLeafContribution.ashare;
@@ -389,13 +382,20 @@ RegAS SegmentTree7::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, 
 
     std::cout << "Step 1 (Path Computation) Time: " << step1_duration << " ms" << std::endl;
     std::cout << "Step 2 (Direct Sum Computation) Time: " << step2_duration << " ms" << std::endl;
+    
+    // Log metrics if logger is provided
+    if (logger) {
+        logger->log_metric("query", operation_id, "path_computation_time", step1_duration);
+        logger->log_metric("query", operation_id, "direct_sum_time", step2_duration);
+    }
 
     return totalSum;
 }
 
 // Main RangeSum function
-void SegmentTree7::RangeSum(MPCTIO &tio,  MPCIO &mpcio, yield_t & yield, RegAS left, RegAS right) {
-    RegAS sum = computeRangeSum(tio, mpcio, yield, left, right);
+void SegmentTree8::RangeSum(MPCTIO &tio,  MPCIO &mpcio, yield_t & yield, RegAS left, RegAS right,
+                            PerformanceLogger* logger, size_t operation_id) {
+    RegAS sum = computeRangeSum(tio, mpcio, yield, left, right, logger, operation_id);
 
     #ifdef SEGTREE_VERBOSE
     value_t answer = mpc_reconstruct(tio, yield, sum);
@@ -404,19 +404,21 @@ void SegmentTree7::RangeSum(MPCTIO &tio,  MPCIO &mpcio, yield_t & yield, RegAS l
 }
 
 // Main Update function
-void SegmentTree7::Update(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS index, RegAS value) {
+void SegmentTree8::Update(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS index, RegAS value,
+                          PerformanceLogger* logger, size_t operation_id) {
     auto update_start = std::chrono::high_resolution_clock::now();
     
     auto SegTreeArray = oram.flat(tio, yield);
-    auto parentArray = parent.flat(tio, yield);
 
     size_t leafLevel = depth - 1;
-    size_t leafStart = getLevelStart7(leafLevel);
+    size_t leafStart = getLevelStart8(leafLevel);
 
     // Access last level Flat object and get current value to calculate difference
-    size_t leafLength = getLevelLength7(leafLevel);
-    typename Duoram<RegAS>::Flat leafLevel_flat(SegTreeArray, tio, yield, leafStart, leafLength);
-    RegAS currVal = leafLevel_flat[index];
+    size_t leafLength = getLevelLength8(leafLevel);
+    typename Duoram<SegTreeNode>::Flat leafLevel_flat(SegTreeArray, tio, yield, leafStart, leafLength);
+    // Access value field from the node
+    SegTreeNode leafNode = leafLevel_flat[index];
+    RegAS currVal = leafNode.value;
     RegAS diff = value - currVal;
 
     // Debugging and intermediate reconstructions
@@ -433,19 +435,21 @@ void SegmentTree7::Update(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS inde
     #endif
     
     // Phase 1: Pre-compute the path indices for all levels (similar to getBitVector)
-    std::vector<RegAS> updatePath(depth);
-    updatePath[depth - 1] = index;  // Start at leaf level
+    std::vector<RegAS> updatePathIndex(depth);
     
     // Compute parent indices for all levels going up the tree
-    for(size_t i = 1; i < depth; i++) {
+    for(size_t i = 1; i <= depth; i++) {
         size_t level = depth - i;  // Current level (leaf to root)
-        size_t levelStart = getLevelStart7(level);
-        size_t levelLength = getLevelLength7(level);
+        size_t levelStart = getLevelStart8(level);
+        size_t levelLength = getLevelLength8(level);
         
-        typename Duoram<RegAS>::Flat parentLevel(parentArray, tio, yield, levelStart, levelLength);
+        typename Duoram<SegTreeNode>::Flat segTreeLevel(SegTreeArray, tio, yield, levelStart, levelLength);
         
-        // Read parent index for next level
-        updatePath[level - 1] = parentLevel[updatePath[level]];
+        // Read parent index from the node
+        SegTreeNode currentNode = segTreeLevel[index];
+        updatePathIndex[level] = index;
+
+        index = currentNode.parent;
     }
     
     auto phase1_end = std::chrono::high_resolution_clock::now();
@@ -454,19 +458,20 @@ void SegmentTree7::Update(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS inde
     std::vector<coro_t> update_coroutines;
     for(size_t i = 1; i <= depth; i++) {
         size_t level = depth - i;
-        
-        update_coroutines.emplace_back([&tio, level, this, &diff, &updatePath, &SegTreeArray](yield_t &sub_yield) {
-            size_t levelStart = getLevelStart7(level);
-            size_t levelLength = getLevelLength7(level);
+
+        update_coroutines.emplace_back([&tio, level, this, &diff, &updatePathIndex, &SegTreeArray](yield_t &sub_yield) {
+            size_t levelStart = getLevelStart8(level);
+            size_t levelLength = getLevelLength8(level);
             
-            typename Duoram<RegAS>::Flat segTreeLevel(SegTreeArray, tio, sub_yield, levelStart, levelLength);
+            typename Duoram<SegTreeNode>::Flat segTreeLevel(SegTreeArray, tio, sub_yield, levelStart, levelLength);
             
-            // Update the value at this level's index
-            segTreeLevel[updatePath[level]] += diff;
-            
+            // Update the value field at this level's index
+            segTreeLevel[updatePathIndex[level]].SEGTREE_VALUE += diff;
+
             #ifdef SEGTREE_VERBOSE
-            auto recons_Index = mpc_reconstruct(tio, sub_yield, updatePath[level]);
-            auto recons_updated = mpc_reconstruct(tio, sub_yield, segTreeLevel[updatePath[level]]);
+            auto recons_Index = mpc_reconstruct(tio, sub_yield, updatePathIndex[level]);
+            SegTreeNode updated_val = segTreeLevel[updatePathIndex[level]];
+            auto recons_updated = mpc_reconstruct(tio, sub_yield, updated_val.value);
             std::cout << "Updated Index = " << (levelStart + recons_Index) << " with value = " << recons_updated << std::endl;
             #endif
         });
@@ -480,10 +485,16 @@ void SegmentTree7::Update(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS inde
     
     std::cout << "Update Phase 1 (Path Computation) Time: " << phase1_duration << " ms" << std::endl;
     std::cout << "Update Phase 2 (Parallel Updates) Time: " << phase2_duration << " ms" << std::endl;
+    
+    // Log metrics if logger is provided
+    if (logger) {
+        logger->log_metric("update", operation_id, "path_computation_time", phase1_duration);
+        logger->log_metric("update", operation_id, "parallel_updates_time", phase2_duration);
+    }
 }
 
-// Main function to run Segment Tree 6 operations
-void SegTree7(MPCIO &mpcio, const PRACOptions &opts, char **args) {
+// Main function to run Segment Tree 8 operations
+void SegTree8(MPCIO &mpcio, const PRACOptions &opts, char **args) {
     // Parse command line arguments
     int nargs = 0;
     while (args[nargs] != nullptr) {
@@ -510,20 +521,36 @@ void SegTree7(MPCIO &mpcio, const PRACOptions &opts, char **args) {
 
     MPCTIO tio(mpcio, 0, opts.num_cpu_threads);
 
-    run_coroutines(tio, [&tio, &mpcio, len, depth, n_updates, n_queries] (yield_t &yield) {
+    // Create experiment ID based on timestamp and parameters
+    auto now = std::time(nullptr);
+    auto tm = *std::localtime(&now);
+    std::ostringstream exp_id_stream;
+    exp_id_stream << "st8_d" << (int)depth << "_u" << n_updates << "_q" << n_queries 
+                  << "_" << std::put_time(&tm, "%Y%m%d_%H%M%S");
+    std::string experiment_id = exp_id_stream.str();
+    
+    // Initialize logger (only player 0 will actually create log files)
+    PerformanceLogger logger(experiment_id, depth, n_updates, n_queries, tio.player(), tio.getMode());
+
+    run_coroutines(tio, [&tio, &mpcio, len, depth, n_updates, n_queries, &logger] (yield_t &yield) {
         
         // Time initialization
         auto init_start = std::chrono::high_resolution_clock::now();
         
-        SegmentTree7 segTree(tio.player(), len, depth);
+        SegmentTree8 segTree(tio.player(), len, depth);
         segTree.init(tio, yield);
         
         auto init_end = std::chrono::high_resolution_clock::now();
         auto init_duration = std::chrono::duration_cast<std::chrono::milliseconds>(init_end - init_start);
         
-        std::cout << "===== Segment Tree Init Stats =====" << std::endl;
-        std::cout << "Updates: " << n_updates << ", Queries: " << n_queries << std::endl;
-        std::cout << "Initialization Time: " << init_duration.count() / 1000.0 << " seconds" << std::endl;
+        logger.log_section("Segment Tree Init Stats");
+        std::ostringstream oss;
+        oss << "Updates: " << n_updates << ", Queries: " << n_queries << "\n";
+        oss << "Initialization Time: " << init_duration.count() / 1000.0 << " seconds\n";
+        logger.log_output(oss.str());
+        
+        logger.log_metric("init", 0, "initialization_time", init_duration.count());
+        
         tio.sync_lamport();
         mpcio.dump_stats(std::cout);
         mpcio.reset_stats();
@@ -531,7 +558,7 @@ void SegTree7(MPCIO &mpcio, const PRACOptions &opts, char **args) {
 
         // Print initial segment tree
         #ifdef SEGTREE_VERBOSE
-        std::cout << "\n===== Initial Segment Tree =====" << std::endl;
+        logger.log_section("Initial Segment Tree");
         segTree.printSegmentTree(tio, yield);
         #endif
 
@@ -540,25 +567,38 @@ void SegTree7(MPCIO &mpcio, const PRACOptions &opts, char **args) {
         
         // Perform updates
         for (size_t u = 0; u < n_updates; ++u) {
-            std::cout << "\n===== Update " << (u + 1) << " begins =====" << std::endl;
+            logger.log_section("Update " + std::to_string(u + 1) + " begins");
+            
+            auto single_update_start = std::chrono::high_resolution_clock::now();
+            
             RegAS index;
-            size_t idx_val = (u % (1 << (depth - 1))) + 1; // Cycle through leaf indices (1 to 2^(d-1))
-            index.set(tio.player() == 0 ? idx_val : 0); // Cycle through leaf indices
-
+            size_t idx_val = (u % (1 << (depth - 1))) + 1;
+            index.set(tio.player() == 0 ? idx_val : 0);
 
             RegAS value;
             size_t val_to_set = (u + 1) * 50;
-            value.set(tio.player() == 0 ? val_to_set : 0); // Use different values for each update
+            value.set(tio.player() == 0 ? val_to_set : 0);
 
-            segTree.Update(tio, mpcio, yield, index, value);
-            std::cout << "Update " << (u + 1) << " ends" << std::endl;
+            segTree.Update(tio, mpcio, yield, index, value, &logger, u + 1);
+            
+            auto single_update_end = std::chrono::high_resolution_clock::now();
+            auto single_update_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+                single_update_end - single_update_start).count();
+            
+            logger.log_metric("update", u + 1, "total_update_time", single_update_duration);
+            logger.log_output("Update " + std::to_string(u + 1) + " ends\n");
         }
 
         auto update_end = std::chrono::high_resolution_clock::now();
         auto update_duration = std::chrono::duration_cast<std::chrono::milliseconds>(update_end - update_start);
 
-        std::cout << "===== Updates Stats =====" << std::endl;
-        std::cout << "Total Updates Time: " << update_duration.count() / 1000.0 << " seconds" << std::endl;
+        logger.log_section("Updates Stats");
+        oss.str("");
+        oss << "Total Updates Time: " << update_duration.count() / 1000.0 << " seconds\n";
+        logger.log_output(oss.str());
+        
+        logger.log_metric("update_summary", 0, "total_all_updates_time", update_duration.count());
+        
         tio.sync_lamport();
         mpcio.dump_stats(std::cout);
         mpcio.reset_stats();
@@ -566,7 +606,7 @@ void SegTree7(MPCIO &mpcio, const PRACOptions &opts, char **args) {
 
         // Print updated segment tree
         #ifdef SEGTREE_VERBOSE
-        std::cout << "\n===== Updated Segment Tree =====" << std::endl;
+        logger.log_section("Updated Segment Tree");
         segTree.printSegmentTree(tio, yield);
         #endif
 
@@ -575,32 +615,45 @@ void SegTree7(MPCIO &mpcio, const PRACOptions &opts, char **args) {
         
         // Perform range sum queries
         for (size_t q = 0; q < n_queries; ++q) {    
-            std::cout << "\n===== Range Sum Query " << (q + 1) << " begins =====" << std::endl;
+            logger.log_section("Range Sum Query " + std::to_string(q + 1) + " begins");
+            
+            auto single_query_start = std::chrono::high_resolution_clock::now();
 
             RegAS left_index, right_index;
 
-            // Initializing valid left and right indices for range sum query
             size_t max_leaf_idx = (1 << (depth - 1));
-            size_t left_val = (q % (1 << (depth - 1))) + 1;  // Start anywhere in valid range (1 to 2^(d-1))
-            size_t right_val = left_val + (q % (max_leaf_idx + 1 - left_val)); // Ensuring right >= left (not needed as our getBitVector function handles handles invalid cases too)
+            size_t left_val = (q % (1 << (depth - 1))) + 1;
+            size_t right_val = left_val + (q % (max_leaf_idx + 1 - left_val));
 
-            left_index.set(tio.player() == 0 ? left_val : 0); // Start of range
-            right_index.set(tio.player() == 0 ? right_val : 0); // End of range
+            left_index.set(tio.player() == 0 ? left_val : 0);
+            right_index.set(tio.player() == 0 ? right_val : 0);
 
             #ifdef SEGTREE_VERBOSE
             auto recons_left = mpc_reconstruct(tio, yield, left_index);
             auto recons_right = mpc_reconstruct(tio, yield, right_index);
-            std::cout << "Range Sum Query [" << recons_left << ", " << recons_right << "]" << std::endl;
+            oss.str("");
+            oss << "Range Sum Query [" << recons_left << ", " << recons_right << "]\n";
+            logger.log_output(oss.str());
             #endif
 
-            segTree.RangeSum(tio, mpcio, yield, left_index, right_index);
-            std::cout << "Range Sum Query " << (q + 1) << " ends" << std::endl;
+            segTree.RangeSum(tio, mpcio, yield, left_index, right_index, &logger, q + 1);
+            
+            auto single_query_end = std::chrono::high_resolution_clock::now();
+            auto single_query_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+                single_query_end - single_query_start).count();
+            
+            logger.log_metric("query", q + 1, "total_query_time", single_query_duration);
+            logger.log_output("Range Sum Query " + std::to_string(q + 1) + " ends\n");
         }
 
         auto query_end = std::chrono::high_resolution_clock::now();
         auto query_duration = std::chrono::duration_cast<std::chrono::milliseconds>(query_end - query_start);
 
-        std::cout << "===== Range Sum Stats =====" << std::endl;
-        std::cout << "Total Range Queries Time: " << query_duration.count() / 1000.0 << " seconds" << std::endl;
+        logger.log_section("Range Sum Stats");
+        oss.str("");
+        oss << "Total Range Queries Time: " << query_duration.count() / 1000.0 << " seconds\n";
+        logger.log_output(oss.str());
+        
+        logger.log_metric("query_summary", 0, "total_all_queries_time", query_duration.count());
     });
 }
