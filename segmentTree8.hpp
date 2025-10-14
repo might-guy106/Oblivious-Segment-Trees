@@ -23,8 +23,8 @@ struct SegTreeNode {
 
     // For debugging
     void dump() const {
-        printf("[val=%016lx par=%016lx lsib=%016lx rsib=%016lx]", 
-               value.share(), parent.share(), 
+        printf("[val=%016lx par=%016lx lsib=%016lx rsib=%016lx]",
+               value.share(), parent.share(),
                leftChildSibling.share(), rightChildSibling.share());
     }
 
@@ -138,8 +138,7 @@ class SegmentTree8 {
     // Single Duoram storing SegTreeNode structs
     Duoram<SegTreeNode> oram;
 
-    RegAS computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS left, RegAS right, 
-                          PerformanceLogger* logger = nullptr, size_t operation_id = 0);
+    void getBitVector(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, Duoram < RegXS > &bitVec, RegAS leftLevelIndex, RegAS rightLevelIndex, PerformanceLogger* logger, size_t operation_id);
 
     public:
 
@@ -154,7 +153,7 @@ class SegmentTree8 {
 
         void init(MPCTIO &tio, yield_t & yield);
 
-    void RangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS left, RegAS right, 
+    void RangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS left, RegAS right,
                   PerformanceLogger* logger = nullptr, size_t operation_id = 0);
     // Instrumented Update (global-index version): measures (1) leaf read, (2) per-level update write, (3) parent index read timings/resources
     void Update(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS index, RegAS value,
