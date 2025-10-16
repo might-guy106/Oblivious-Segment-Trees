@@ -166,8 +166,6 @@ RegAS SegmentTree9::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, 
             RegBS rightLastBit = rightIndex.bitat(0);
 
             RegAS leftSum, rightSum;
-            leftSum.set(0);
-            rightSum.set(0);
             run_coroutines(sub_yield,
             [&tio, &levelTreeArray, &levelSiblingArray, isNotDone, leftIndex, &leftSum, leftLastBit](yield_t &yield) {
                 auto levelSiblingArrayCoro = levelSiblingArray.context(yield);
@@ -194,25 +192,31 @@ RegAS SegmentTree9::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, 
 
             levelSums[level] += leftSum + rightSum;
 
-            // if its the leaf level then we also have to include the leftIndex and rightIndex themselves ---
+            // if its the leaf level then we also have to include the leftIndex and rightIndex themselves after checking validation and duplication
             if(i == 1)
             {
                 CDPF cdpf2 = tio.cdpf(sub_yield);
                 RegAS diff2 = rightIndexAS - leftIndexAS; // diff1 = right - left
                 auto[lt_c2, eq_c2, gt_c2] = cdpf2.compare(tio, sub_yield, diff2, tio.aes_ops());
 
-                // if right >= left add left
-                // that is equivalent to !(left > right) => lt_c2 ^ tio.player()
-                RegAS leftLeafValue = levelTreeArray[leftIndex];
                 RegAS leftLeafContribution;
-                mpc_select(tio, sub_yield, leftLeafContribution, lt_c2 ^ tio.player(), zero, leftLeafValue);
-                levelSums[level] += leftLeafContribution;
-
-                // Only add right leaf if it's different from left (to avoid double counting) that is if right > left
-                RegAS rightLeafValue = levelTreeArray[rightIndex];
                 RegAS rightLeafContribution;
-                mpc_select(tio, sub_yield, rightLeafContribution, gt_c2, zero, rightLeafValue);
-                levelSums[level] += rightLeafContribution;
+                run_coroutines(sub_yield,
+                [&tio, &lt_c2, &eq_c2, &gt_c2, &zero, &one, &leftIndex, &levelTreeArray, &leftLeafContribution](yield_t &yield) {
+                    // if right >= left add left
+                    // that is equivalent to !(left > right) => lt_c2 ^ tio.player()
+                    auto levelTreeArrayCoro    = levelTreeArray.context(yield);
+                    RegAS leftLeafValue = levelTreeArrayCoro[leftIndex];
+                    mpc_select(tio, yield, leftLeafContribution, lt_c2 ^ tio.player(), zero, leftLeafValue);
+                },
+                [&tio, &lt_c2, &eq_c2, &gt_c2, &zero, &one, &rightIndex, &levelTreeArray, &rightLeafContribution](yield_t &yield) {
+                    // Only add right leaf if it's different from left (to avoid double counting) that is if right > left
+                    auto levelTreeArrayCoro = levelTreeArray.context(yield);
+                    RegAS rightLeafValue = levelTreeArrayCoro[rightIndex];
+                    mpc_select(tio, yield, rightLeafContribution, gt_c2, zero, rightLeafValue);
+                });
+
+                levelSums[level] += leftLeafContribution + rightLeafContribution;
             }
         });
     }
