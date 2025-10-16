@@ -11,7 +11,7 @@
 #include "logger.hpp"
 
 // uncomment to enable intermediate reconstructions and logging
-#define SEGTREE_VERBOSE
+// #define SEGTREE_VERBOSE
 
 /*
  *
@@ -368,7 +368,7 @@ void SegTree9(MPCIO &mpcio, const PRACOptions &opts, char **args) {
     auto now = std::time(nullptr);
     auto tm = *std::localtime(&now);
     std::ostringstream exp_id_stream;
-    exp_id_stream << "st8_d" << (int)depth << "_u" << n_updates << "_q" << n_queries
+    exp_id_stream << "st9_d" << (int)depth << "_u" << n_updates << "_q" << n_queries
                   << "_" << std::put_time(&tm, "%Y%m%d_%H%M%S");
     std::string experiment_id = exp_id_stream.str();
 
