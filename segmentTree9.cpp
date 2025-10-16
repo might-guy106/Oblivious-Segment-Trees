@@ -16,11 +16,11 @@
 /*
  *
  * usual segment tree with root at index 1
- * parent of a index is at index/2 we can simply do index >> 1 to the additive shares of the index
+ * parent of a index is at index/2 we can simply do index >> 1 to the xor shares of the index
  * store this path if needed
  *
  *
- * if index are level wise, still the index >> 1 to their additive shares gives shares of parent index in its level
+ * if index are level wise, still the index >> 1 to their xor shares gives shares of parent index in its level
  *
  */
 
