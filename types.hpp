@@ -46,6 +46,45 @@ using nbits_t = uint8_t;
 // overflowing if nbits == VALUE_BITS
 #define MASKBITS(nbits) (((nbits) < VALUE_BITS) ? (value_t(1)<<(nbits))-1 : ~0)
 
+// The type of a register holding a bit share
+struct RegBS {
+    bit_t bshare;
+
+    RegBS() : bshare(0) {}
+
+    inline bit_t share() const { return bshare; }
+    inline void set(bit_t s) { bshare = s; }
+
+    // Set each side's share to a random bit
+    inline void randomize() {
+        unsigned char randb;
+        arc4random_buf(&randb, sizeof(randb));
+        bshare = randb & 1;
+    }
+
+    inline RegBS &operator^=(const RegBS &rhs) {
+        this->bshare ^= rhs.bshare;
+        return *this;
+    }
+
+    inline RegBS operator^(const RegBS &rhs) const {
+        RegBS res = *this;
+        res ^= rhs;
+        return res;
+    }
+
+    inline RegBS &operator^=(const bit_t &rhs) {
+        this->bshare ^= rhs;
+        return *this;
+    }
+
+    inline RegBS operator^(const bit_t &rhs) const {
+        RegBS res = *this;
+        res ^= rhs;
+        return res;
+    }
+};
+
 // The type of a register holding an additive share of a value
 struct RegAS {
     value_t ashare;
@@ -112,6 +151,23 @@ struct RegAS {
         return res;
     }
 
+    inline RegAS &operator>>=(nbits_t shift) {
+        this->ashare >>= shift;
+        return *this;
+    }
+
+    inline RegAS operator>>(nbits_t shift) const {
+        RegAS res = *this;
+        res >>= shift;
+        return res;
+    }
+
+    inline RegBS bitat(nbits_t pos) const {
+        RegBS bs;
+        bs.set(!!(this->ashare & (value_t(1)<<pos)));
+        return bs;
+    }
+
     // Multiply a scalar by a vector
     template <size_t N>
     inline std::array<RegAS,N> operator*(std::array<value_t,N> rhs) const {
@@ -159,45 +215,6 @@ inline value_t combine(const RegAS &A, const RegAS &B,
     }
     return (A.ashare + B.ashare) & mask;
 }
-
-// The type of a register holding a bit share
-struct RegBS {
-    bit_t bshare;
-
-    RegBS() : bshare(0) {}
-
-    inline bit_t share() const { return bshare; }
-    inline void set(bit_t s) { bshare = s; }
-
-    // Set each side's share to a random bit
-    inline void randomize() {
-        unsigned char randb;
-        arc4random_buf(&randb, sizeof(randb));
-        bshare = randb & 1;
-    }
-
-    inline RegBS &operator^=(const RegBS &rhs) {
-        this->bshare ^= rhs.bshare;
-        return *this;
-    }
-
-    inline RegBS operator^(const RegBS &rhs) const {
-        RegBS res = *this;
-        res ^= rhs;
-        return res;
-    }
-
-    inline RegBS &operator^=(const bit_t &rhs) {
-        this->bshare ^= rhs;
-        return *this;
-    }
-
-    inline RegBS operator^(const bit_t &rhs) const {
-        RegBS res = *this;
-        res ^= rhs;
-        return res;
-    }
-};
 
 // The type of a register holding an XOR share of a value
 struct RegXS {
