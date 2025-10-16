@@ -84,25 +84,25 @@ void SegmentTree9::printSegmentTree(MPCTIO &tio, yield_t & yield) {
 }
 
 // Main function to compute range sum directly (optimized - no intermediate bitVec)
-RegAS SegmentTree9::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS leftLevelIndex, RegAS rightLevelIndex,
+RegAS SegmentTree9::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegXS leftLevelIndex, RegXS rightLevelIndex,
                                     PerformanceLogger* logger, size_t operation_id) {
 
     auto SegTreeArray = TreeOram.flat(tio, yield);
     auto SiblingArray = SiblingOram.flat(tio, yield);
 
-    RegBS isValid; // isValid = right >= left
-    CDPF cdpf = tio.cdpf(yield);
-    RegAS diff = rightLevelIndex - leftLevelIndex;
-    auto[lt_c1, eq_c1, gt_c1] = cdpf.compare(tio, yield, diff, tio.aes_ops());
-    mpc_or(tio, yield, isValid, gt_c1, eq_c1); // isValid = (left <= right)
-    RegBS isDifferent = gt_c1; // isDifferent = right > left
+    // RegBS isValid; // isValid = right >= left
+    // CDPF cdpf = tio.cdpf(yield);
+    // RegAS diff = rightLevelIndex - leftLevelIndex;
+    // auto[lt_c1, eq_c1, gt_c1] = cdpf.compare(tio, yield, diff, tio.aes_ops());
+    // mpc_or(tio, yield, isValid, gt_c1, eq_c1); // isValid = (left <= right)
+    // RegBS isDifferent = gt_c1; // isDifferent = right > left
 
 
     // Step 1: Pre-compute the path indices for all levels
     auto start_time = std::chrono::high_resolution_clock::now();
     // Store leftLevelIndex and rightLevelIndex for each level
-    std::vector<RegAS> leftPathIndex(depth);
-    std::vector<RegAS> rightPathIndex(depth);
+    std::vector<RegXS> leftPathIndex(depth);
+    std::vector<RegXS> rightPathIndex(depth);
 
     // Compute parent indices for all levels going up the tree
     for(uint32_t i = 1; i <= depth; i++) {
@@ -130,7 +130,7 @@ RegAS SegmentTree9::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, 
     for(uint32_t i = 1; i <= depth; i++) {
         size_t level = depth - i;
 
-        sum_coroutines.emplace_back([&tio, level, i, this, &isValid, &isDifferent, &leftPathIndex, &rightPathIndex,
+        sum_coroutines.emplace_back([&tio, level, i, this, &leftPathIndex, &rightPathIndex,
                                     &SegTreeArray, &SiblingArray, &levelSums](yield_t &sub_yield) {
             size_t levelStart = 1ULL << level;
             size_t levelLength = (1ULL << level) + 1;
@@ -149,83 +149,101 @@ RegAS SegmentTree9::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, 
             typename Duoram<RegAS>::Flat levelSiblingArray(SiblingArray, tio, sub_yield, levelStart, levelLength);
 
             // level index which are already stored or can be computed using index >>= level
-            RegAS leftIndex = leftPathIndex[level];
-            RegAS rightIndex = rightPathIndex[level];
-            std::cout << "breakpoint 1" << std::endl;
+            RegXS leftIndex = leftPathIndex[level];
+            RegXS rightIndex = rightPathIndex[level];
+
+            RegAS leftIndexAS;
+            RegAS rightIndexAS;
+            run_coroutines(sub_yield,
+            [&tio, leftIndex, &leftIndexAS](yield_t &yield){
+                mpc_xs_to_as(tio, yield, leftIndexAS, leftIndex);
+            },
+            [&tio, rightIndex, &rightIndexAS](yield_t &yield){
+                mpc_xs_to_as(tio, yield, rightIndexAS, rightIndex);
+            });
+
             // if left and right are adjacent or same then the marking of nodes is already completed so we set isDone here
             RegBS isNotDone;
             CDPF cdpf1 = tio.cdpf(sub_yield);
-            RegAS diff1 = rightIndex - (leftIndex + one); // diff1 = right - (left + 1)
+            RegAS diff1 = rightIndexAS - (leftIndexAS + one); // diff1 = right - (left + 1)
             auto[lt_c1, eq_c1, gt_c1] = cdpf1.compare(tio, sub_yield, diff1, tio.aes_ops());
 
             isNotDone = gt_c1; // isNotDone = (right > left + 1)
 
-            std::cout << "breakpoint 2" << std::endl;
-
             // we have to include the leftSibling and rightSibling only if marking is not yet completed and initial query is valid
-            RegBS Check;
-            mpc_and(tio, sub_yield, Check, isNotDone, isValid); // Check = isNotDone AND isValid
+            // RegBS Check;
+            // mpc_and(tio, sub_yield, Check, isNotDone, isValid); // Check = isNotDone AND isValid
 
             // include left and right independently based on isValid and isDifferent and if left is left child and right is right child
             // if xor of last bit is 1 then its odd -> right child else left child
             // if leftLastBit is 1 then left is right child else left child
             RegBS leftLastBit = leftIndex.bitat(0);
             RegBS rightLastBit = rightIndex.bitat(0);
-            std::cout << "breakpoint 2.1" << std::endl;
 
             RegAS leftSum, rightSum;
             leftSum.set(0);
             rightSum.set(0);
-            run_coroutines(tio,
-            [&tio, &levelTreeArray, &levelSiblingArray, Check, leftIndex, &leftSum, leftLastBit](yield_t &yield) {
+            run_coroutines(sub_yield,
+            [&tio, &levelTreeArray, &levelSiblingArray, isNotDone, leftIndex, &leftSum, leftLastBit](yield_t &yield) {
                 auto levelSiblingArrayCoro = levelSiblingArray.context(yield);
-                auto levelTreeArrayCoro = levelTreeArray.context(yield);
-
-                std::cout << "breakpoint 2.2" << std::endl;
+                auto levelTreeArrayCoro    = levelTreeArray.context(yield);
 
                 RegAS leftSibIndex = levelSiblingArrayCoro[leftIndex];
                 RegAS leftSibValue = levelTreeArrayCoro[leftSibIndex];
 
-                std::cout << "breakpoint 2.3" << std::endl;
-
                 RegBS isLeftIncluded;
-                mpc_and(tio, yield, isLeftIncluded, Check, leftLastBit ^ tio.player()); // include left sibling only if left is left child -> index is even -> xor of last bits is 0
+                mpc_and(tio, yield, isLeftIncluded, isNotDone, leftLastBit ^ tio.player());
                 mpc_flagmult(tio, yield, leftSum, isLeftIncluded, leftSibValue);
             },
-            [&tio, &levelTreeArray, &levelSiblingArray, Check, rightIndex, &rightSum, rightLastBit](yield_t &yield) {
+            [&tio, &levelTreeArray, &levelSiblingArray, isNotDone, rightIndex, &rightSum, rightLastBit](yield_t &yield) {
                 auto levelSiblingArrayCoro = levelSiblingArray.context(yield);
-                auto levelTreeArrayCoro = levelTreeArray.context(yield);
-
-                std::cout << "breakpoint 2.4" << std::endl;
+                auto levelTreeArrayCoro    = levelTreeArray.context(yield);
 
                 RegAS rightSibIndex = levelSiblingArrayCoro[rightIndex];
                 RegAS rightSibValue = levelTreeArrayCoro[rightSibIndex];
 
-                std::cout << "breakpoint 2.5" << std::endl;
-
                 RegBS isRightIncluded;
-                mpc_and(tio, yield, isRightIncluded, Check, rightLastBit); // include right sibling only if right is right child -> index is odd -> xor of last bits is 1
+                mpc_and(tio, yield, isRightIncluded, isNotDone, rightLastBit);
                 mpc_flagmult(tio, yield, rightSum, isRightIncluded, rightSibValue);
             });
 
-            std::cout << "breakpoint 3" << std::endl;
+            // RegAS leftSibIndex = levelSiblingArray[leftIndex];
+            // RegAS leftSibValue = levelTreeArray[leftSibIndex];
+
+            // RegBS isLeftIncluded;
+            // mpc_and(tio, sub_yield, isLeftIncluded, Check, leftLastBit ^ tio.player()); // include left sibling only if left is left child -> index is even -> xor of last bits is 0
+            // mpc_flagmult(tio, sub_yield, leftSum, isLeftIncluded, leftSibValue);
+
+            // RegAS rightSibIndex = levelSiblingArray[rightIndex];
+            // RegAS rightSibValue = levelTreeArray[rightSibIndex];
+
+            // RegBS isRightIncluded;
+            // mpc_and(tio, sub_yield, isRightIncluded, Check, rightLastBit); // include right sibling only if right is right child -> index is odd -> xor of last bits is 1
+            // mpc_flagmult(tio, sub_yield, rightSum, isRightIncluded, rightSibValue);
+
 
             levelSums[level] += leftSum + rightSum;
 
             // if its the leaf level then we also have to include the leftIndex and rightIndex themselves ---
             if(i == 1)
             {
-                RegAS leftLeafValue = levelTreeArray[leftIndex];
-                levelSums[level] += leftLeafValue;
+                CDPF cdpf2 = tio.cdpf(sub_yield);
+                RegAS diff2 = rightIndexAS - leftIndexAS; // diff1 = right - left
+                auto[lt_c2, eq_c2, gt_c2] = cdpf2.compare(tio, sub_yield, diff2, tio.aes_ops());
 
-                // Only add right leaf if it's different from left (to avoid double counting)
+                // if right >= left add left
+                // that is equivalent to !(left > right) => lt_c2 ^ tio.player()
+                RegAS leftLeafValue = levelTreeArray[leftIndex];
+                RegAS leftLeafContribution;
+                mpc_select(tio, sub_yield, leftLeafContribution, lt_c2 ^ tio.player(), zero, leftLeafValue);
+                levelSums[level] += leftLeafContribution;
+
+                // Only add right leaf if it's different from left (to avoid double counting) that is if right > left
                 RegAS rightLeafValue = levelTreeArray[rightIndex];
                 RegAS rightLeafContribution;
-                mpc_select(tio, sub_yield, rightLeafContribution, isDifferent, zero, rightLeafValue);
+                mpc_select(tio, sub_yield, rightLeafContribution, gt_c2, zero, rightLeafValue);
                 levelSums[level] += rightLeafContribution;
             }
-
-            std::cout << "breakpoint 4" << std::endl;
         });
     }
 
@@ -253,7 +271,7 @@ RegAS SegmentTree9::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, 
 }
 
 // Main RangeSum function
-void SegmentTree9::RangeSum(MPCTIO &tio,  MPCIO &mpcio, yield_t & yield, RegAS left, RegAS right,
+void SegmentTree9::RangeSum(MPCTIO &tio,  MPCIO &mpcio, yield_t & yield, RegXS left, RegXS right,
                             PerformanceLogger* logger, size_t operation_id) {
     RegAS sum = computeRangeSum(tio, mpcio, yield, left, right, logger, operation_id);
 
@@ -264,9 +282,8 @@ void SegmentTree9::RangeSum(MPCTIO &tio,  MPCIO &mpcio, yield_t & yield, RegAS l
 }
 
 // Main Update function
-void SegmentTree9::Update(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS index, RegAS value,
+void SegmentTree9::Update(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegXS index, RegAS value,
                           PerformanceLogger* logger, size_t operation_id) {
-    auto update_start = std::chrono::high_resolution_clock::now();
 
     auto SegTreeArray = TreeOram.flat(tio, yield);
 
@@ -292,8 +309,9 @@ void SegmentTree9::Update(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS inde
     std::cout << "Diff = " << recons_diff << std::endl;
     #endif
 
+    auto update_start = std::chrono::high_resolution_clock::now();
     // Phase 1: Pre-compute the path indices for all levels (similar to getBitVector)
-    std::vector<RegAS> updatePathIndex(depth);
+    std::vector<RegXS> updatePathIndex(depth);
 
     // Compute parent indices for all levels going up the tree
     for(size_t i = 1; i <= depth; i++) {
@@ -422,7 +440,7 @@ void SegTree9(MPCIO &mpcio, const PRACOptions &opts, char **args) {
 
             auto single_update_start = std::chrono::high_resolution_clock::now();
 
-            RegAS index;
+            RegXS index;
             size_t idx_val = (u % (1 << (depth - 1)));
             index.set(tio.player() == 0 ? idx_val : 0);
 
@@ -470,7 +488,7 @@ void SegTree9(MPCIO &mpcio, const PRACOptions &opts, char **args) {
 
             auto single_query_start = std::chrono::high_resolution_clock::now();
 
-            RegAS left_index, right_index;
+            RegXS left_index, right_index;
 
             size_t max_leaf_idx = (1 << (depth - 1)) - 1;
             size_t left_val = (q % (1 << (depth - 1)));

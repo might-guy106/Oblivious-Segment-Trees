@@ -15,7 +15,7 @@ class SegmentTree9 {
     Duoram<RegAS> TreeOram; // Duoram to store complete tree
     Duoram<RegAS> SiblingOram; // Duoram to store sibling indexes
 
-    RegAS computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS left, RegAS right,
+    RegAS computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegXS left, RegXS right,
                           PerformanceLogger* logger = nullptr, size_t operation_id = 0);
 
     public:
@@ -31,9 +31,9 @@ class SegmentTree9 {
 
     void init(MPCTIO &tio, yield_t & yield);
 
-    void RangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS left, RegAS right,
+    void RangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegXS left, RegXS right,
                   PerformanceLogger* logger = nullptr, size_t operation_id = 0);
-    void Update(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegAS index, RegAS value,
+    void Update(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegXS index, RegAS value,
                 PerformanceLogger* logger = nullptr, size_t operation_id = 0);
     void printSegmentTree(MPCTIO &tio, yield_t & yield);
 
