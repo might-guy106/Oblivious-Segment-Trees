@@ -90,15 +90,7 @@ RegAS SegmentTree9::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, 
     auto SegTreeArray = TreeOram.flat(tio, yield);
     auto SiblingArray = SiblingOram.flat(tio, yield);
 
-    // RegBS isValid; // isValid = right >= left
-    // CDPF cdpf = tio.cdpf(yield);
-    // RegAS diff = rightLevelIndex - leftLevelIndex;
-    // auto[lt_c1, eq_c1, gt_c1] = cdpf.compare(tio, yield, diff, tio.aes_ops());
-    // mpc_or(tio, yield, isValid, gt_c1, eq_c1); // isValid = (left <= right)
-    // RegBS isDifferent = gt_c1; // isDifferent = right > left
-
-
-    // Step 1: Pre-compute the path indices for all levels
+    // Phase 1: Pre-compute the path indices for all levels
     auto start_time = std::chrono::high_resolution_clock::now();
     // Store leftLevelIndex and rightLevelIndex for each level
     std::vector<RegXS> leftPathIndex(depth);
@@ -120,7 +112,7 @@ RegAS SegmentTree9::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, 
     auto step1_duration = std::chrono::duration_cast<std::chrono::milliseconds>(step1_end_time - start_time).count();
     std::cout << "Step 1 (Path Computation) Time: " << step1_duration << " ms" << std::endl;
 
-    // Step 2: Compute sum directly while identifying nodes to include
+    // Phase 2: Compute sum directly while identifying nodes to include
     std::vector<RegAS> levelSums(depth);
     for(size_t level = 0; level < depth; level++) {
         levelSums[level].set(0);
@@ -135,10 +127,7 @@ RegAS SegmentTree9::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, 
             size_t levelStart = 1ULL << level;
             size_t levelLength = (1ULL << level) + 1;
 
-            // Create incl fresh in each coroutine to avoid sharing issues
-            RegXS incl;
-            incl.set(tio.player());
-
+            // Create one, zero which are required in mpc operations further
             RegAS one;
             one.set(tio.player());
 
@@ -169,10 +158,6 @@ RegAS SegmentTree9::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, 
             auto[lt_c1, eq_c1, gt_c1] = cdpf1.compare(tio, sub_yield, diff1, tio.aes_ops());
 
             isNotDone = gt_c1; // isNotDone = (right > left + 1)
-
-            // we have to include the leftSibling and rightSibling only if marking is not yet completed and initial query is valid
-            // RegBS Check;
-            // mpc_and(tio, sub_yield, Check, isNotDone, isValid); // Check = isNotDone AND isValid
 
             // include left and right independently based on isValid and isDifferent and if left is left child and right is right child
             // if xor of last bit is 1 then its odd -> right child else left child
@@ -206,21 +191,6 @@ RegAS SegmentTree9::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, 
                 mpc_and(tio, yield, isRightIncluded, isNotDone, rightLastBit);
                 mpc_flagmult(tio, yield, rightSum, isRightIncluded, rightSibValue);
             });
-
-            // RegAS leftSibIndex = levelSiblingArray[leftIndex];
-            // RegAS leftSibValue = levelTreeArray[leftSibIndex];
-
-            // RegBS isLeftIncluded;
-            // mpc_and(tio, sub_yield, isLeftIncluded, Check, leftLastBit ^ tio.player()); // include left sibling only if left is left child -> index is even -> xor of last bits is 0
-            // mpc_flagmult(tio, sub_yield, leftSum, isLeftIncluded, leftSibValue);
-
-            // RegAS rightSibIndex = levelSiblingArray[rightIndex];
-            // RegAS rightSibValue = levelTreeArray[rightSibIndex];
-
-            // RegBS isRightIncluded;
-            // mpc_and(tio, sub_yield, isRightIncluded, Check, rightLastBit); // include right sibling only if right is right child -> index is odd -> xor of last bits is 1
-            // mpc_flagmult(tio, sub_yield, rightSum, isRightIncluded, rightSibValue);
-
 
             levelSums[level] += leftSum + rightSum;
 
