@@ -11,7 +11,7 @@
 #include "bst.hpp"
 #include "avl.hpp"
 #include "heapsampler.hpp"
-#include "segmentTree8.hpp"
+#include "segmentTree9.hpp"
 
 static void online_test(MPCIO &mpcio,
     const PRACOptions &opts, char **args)
@@ -1706,9 +1706,9 @@ void online_main(MPCIO &mpcio, const PRACOptions &opts, char **args)
     } else if (!strcmp(*args, "weightedcoin")) {
         ++args;
         weighted_coin_test(mpcio, opts, args);
-    } else if (!strcmp(*args, "segmenttree8")) {
+    } else if (!strcmp(*args, "segmenttree9")) {
         ++args;
-        SegTree8(mpcio, opts, args);
+        SegTree9(mpcio, opts, args);
     } else {
         std::cerr << "Unknown mode " << *args << "\n";
     }
