@@ -49,7 +49,7 @@ done
 DEPTH=${1:-20}
 UPDATES=${2:-10}
 QUERIES=${3:-10}
-VARIANT=${4:-segmenttree8}
+VARIANT=${4:-segmenttree9}
 THREADS=${5:-8}
 
 # Create session name with timestamp
