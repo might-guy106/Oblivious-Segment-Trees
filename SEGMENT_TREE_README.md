@@ -3,18 +3,53 @@
 This document describes the oblivious segment tree implementation in the PRAC framework. The latest version of the code is `segmentTree9.cpp` and `segmentTree9.hpp`.
 
 ## Setup
-
+**Option A: Local Setup**
 1.  **Clone the repository:**
-
     ```bash
     git clone git@github.com:might-guy106/Oblivious-Segment-Trees.git
     cd Oblivious-Segment-Trees
     ```
 
 2.  **Build the project:**
-
     ```bash
     make
+    ```
+
+3.  **Python Environment Setup:**
+    The performance analysis script requires Python packages (`pandas`, `matplotlib`, `seaborn`, `rich`).
+
+    
+    We recommend using `uv` for environment management.
+
+    1.  Install uv (if not installed):
+        ```bash
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        ```
+    2.  Create a virtual environment and install dependencies:
+        ```bash
+        uv venv
+        source .venv/bin/activate
+        uv pip install pandas matplotlib seaborn rich
+        ```
+
+**Option B: Server Setup (172.27.21.172)**
+If you are running on the specific server, the environment is already pre-configured.
+
+1.  SSH into the server:
+    ```bash
+    ssh segmentrees@172.27.21.172
+    ```
+2.  Navigate to the project directory:
+    ```bash
+    cd /home/segmentrees/ugp/Oblivious-Segment-Trees
+    ```
+3.  **Build the project:**
+    ```bash
+    make
+    ```
+4.  Activate the Python environment:
+    ```bash
+    source myenv/bin/activate
     ```
 
 ## Manual Execution
@@ -126,21 +161,7 @@ This script automatically:
 
 You can use `analyze_performance.py` to get a summary of the runs and generate visualizations/plots. The results will be saved in the `logs/plots` folder.
 
-### Python Environment Setup
 
-The analysis script requires Python packages. We recommend using `uv` for environment management.
-
-1.  **Install uv (if not installed) for macOS and Linux:**
-    ```bash
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-    ```
-
-2.  **Create a virtual environment and install dependencies:**
-    ```bash
-    uv venv
-    source .venv/bin/activate
-    uv pip install pandas matplotlib seaborn rich
-    ```
 
 ### Running the Analysis
 
