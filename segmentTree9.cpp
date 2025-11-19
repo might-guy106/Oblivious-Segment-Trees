@@ -14,15 +14,67 @@
 // #define SEGTREE_VERBOSE
 
 /*
- *
- * usual segment tree with root at index 1
- * parent of a index is at index/2 we can simply do index >> 1 to the xor shares of the index
- * store this path if needed
- *
- *
- * if index are level wise, still the index >> 1 to their xor shares gives shares of parent index in its level
- *
- */
+The segment tree data structure in SegmentTree8 uses a ARRAY layout 
+
+ARRAY STRUCTURE:
+- Each level k has 2^k nodes
+- Total array size: 2^d nodes
+- Level k starts at index: 2^k
+
+LEVEL-WISE LAYOUT EXAMPLE:
+For depth d=3, array [100, 200, 300, 400] (4 elements):
+
+Level 0: [600]           (Root level: root_sum)
+Level 1: [300][700]      (Level 1: left_sum + right_sum) 
+Level 2: [100][200][300][400]  (Leaf level: leaf_values)
+
+Array storage:
+Index:  [1][2][3][4][5][6][7]
+Value:  [600][300][700][100][200][300][400]
+Level:   0   1   1   2   2   2  2
+
+MATHEMATICAL FORMULAS:
+- Level k start index: 2^k
+- Level k length: 2^k  
+- Total array size: 2^d
+*/
+    
+/*
+RANGE SUM QUERY OPERATION (Level-wise Processing)
+
+The range sum query efficiently computes the sum of elements in a given range [left, right]
+using the level-wise segment tree structure. The algorithm processes entire levels at once
+using level-specific Flat objects for optimal MPC performance.
+
+parent of a index is at index/2 we can simply do index >> 1 to the xor shares of the index store this path if needed
+if index are level wise, still the index >> 1 to their xor shares gives shares of parent index in its level
+
+Algorithm Overview:
+1. Start with leaf-level indices (left, right) 
+2. PreCompute the path indices for all levels going up the tree
+3. For each level from leaves to root:
+   - Create level-specific Flat objects for Tree ORAM and Sibling ORAM
+   - Compute Additive Shares of XOR shares of left and right indices
+   - use Additive share to compare them and compute isNotDone flag
+   - Get the last bit of xor shares of left and right indeces which functions as boolean shares of isOdd
+   - get leftSiblingIndex and rightSiblingIndex from SiblingArray and then using these get leftSiblingValue and rightSiblingValue from segTree
+   - add leftSiblingValue to sum if left is a left child => !isOdd && isNotDone
+   - add rightSiblingValue to sum if right is a right child => isOdd && isNotDone
+*/
+
+/*
+UPDATE OPERATION (Level-wise Propagation)
+
+The update operation modifies a single array element and propagates the change
+up through all levels using level-specific addressing and parent relationships.
+
+Algorithm Overview:
+1. Calculate difference between new and current values
+2. For each level from leaves to root:
+   - Create level-specific Flat objects 
+   - Update current node with difference
+   - Move to parent using level-relative parent index
+*/
 
 size_t arrayIndexToLevelIndex(size_t idx) {
      // Compute level as the floor of log2(idx)
