@@ -11,17 +11,7 @@
 #include "bst.hpp"
 #include "avl.hpp"
 #include "heapsampler.hpp"
-#include "segmentTree.hpp"
-#include "segmentTree2.hpp"
-#include "segmentTree3.hpp"
-#include "segmentTree4.hpp"
-#include "segmentTree5.hpp"
-#include "segmentTree6.hpp"
-#include "segmentTree7.hpp"
-#include "segmentTree8.hpp"
 #include "segmentTree9.hpp"
-#include "segmentTreeClean.hpp"
-// #include "test_custompath.hpp"
 
 static void online_test(MPCIO &mpcio,
     const PRACOptions &opts, char **args)
@@ -1716,43 +1706,10 @@ void online_main(MPCIO &mpcio, const PRACOptions &opts, char **args)
     } else if (!strcmp(*args, "weightedcoin")) {
         ++args;
         weighted_coin_test(mpcio, opts, args);
-    } else if (!strcmp(*args, "segmenttree")) {
-        ++args;
-        SegTree(mpcio, opts, args);
-    } else if (!strcmp(*args, "segmenttree2")) {
-        ++args;
-        SegTree2(mpcio, opts, args);
-    } else if (!strcmp(*args, "segmenttree3")) {
-        ++args;
-        SegTree3(mpcio, opts, args);
-    } else if (!strcmp(*args, "segmenttree4")) {
-        ++args;
-        SegTree4(mpcio, opts, args);
-    } else if (!strcmp(*args, "segmenttree5")) {
-        ++args;
-        SegTree5(mpcio, opts, args);
-    } else if (!strcmp(*args, "segmenttree6")) {
-        ++args;
-        SegTree6(mpcio, opts, args);
-
-    } else if (!strcmp(*args, "segmenttree7")) {
-        ++args;
-        SegTree7(mpcio, opts, args);
-    } else if (!strcmp(*args, "segmenttree8")) {
-        ++args;
-        SegTree8(mpcio, opts, args);
     } else if (!strcmp(*args, "segmenttree9")) {
         ++args;
         SegTree9(mpcio, opts, args);
-    } else if (!strcmp(*args, "segmenttreeClean")) {
-        ++args;
-        SegTreeClean(mpcio, opts, args);
-    }
-    // else if (!strcmp(*args, "testCustomPath")) {
-    //     ++args;
-    //     test_custompath(mpcio, opts);
-    // }
-    else {
+    } else {
         std::cerr << "Unknown mode " << *args << "\n";
     }
 }

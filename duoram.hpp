@@ -63,7 +63,6 @@ public:
     class Pad;
     class Stride;
     class Path;
-    // class CustomPath;
 
     // Oblivious indices for use in related-index ORAM accesses
     template <typename U, nbits_t WIDTH>
@@ -96,7 +95,6 @@ class Duoram<T>::Shape {
     friend class Pad;
     friend class Stride;
     friend class Path;
-    // friend class CustomPath;
 
     template <typename U, nbits_t WIDTH>
     friend class OblivIndex;

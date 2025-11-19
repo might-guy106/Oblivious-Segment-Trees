@@ -10,7 +10,7 @@ LDLIBS=-lbsd -lboost_system -lboost_context -lboost_chrono -lboost_thread -lpthr
 BIN=prac
 SRCS=prac.cpp mpcio.cpp preproc.cpp online.cpp mpcops.cpp rdpf.cpp \
 	cdpf.cpp duoram.cpp cell.cpp bst.cpp avl.cpp heap.cpp \
-	heapsampler.cpp segmentTree.cpp segmentTree2.cpp segmentTree3.cpp segmentTree4.cpp segmentTree5.cpp segmentTree6.cpp segmentTree7.cpp segmentTree8.cpp segmentTree9.cpp segmentTreeClean.cpp
+	heapsampler.cpp segmentTree9.cpp
 OBJS=$(SRCS:.cpp=.o)
 ASMS=$(SRCS:.cpp=.s)
 
@@ -71,6 +71,3 @@ heapsampler.o: heapsampler.hpp mpcio.hpp types.hpp bitutils.hpp corotypes.hpp
 heapsampler.o: mpcio.tcc coroutine.hpp heap.hpp options.hpp mpcops.hpp
 heapsampler.o: mpcops.tcc duoram.hpp rdpf.hpp dpf.hpp prg.hpp aes.hpp
 heapsampler.o: rdpf.tcc duoram.tcc cdpf.hpp cdpf.tcc
-segmentTree2.o: segmentTree2.hpp types.hpp mpcio.hpp coroutine.hpp options.hpp \
-	mpcops.hpp duoram.hpp rdpf.hpp dpf.hpp prg.hpp aes.hpp cdpf.hpp shapes.hpp \
-	cell.hpp
