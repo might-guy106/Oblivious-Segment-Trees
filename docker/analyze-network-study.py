@@ -15,15 +15,17 @@ console = Console()
 
 def parse_network_params(filename):
     """
-    Extracts latency and bandwidth from filename.
-    Expected format: ..._lat{X}ms_bw{Y}mbit...csv
+    Extracts latency, bandwidth, and depth from filename.
+    Expected format: ..._d{Depth}_..._lat{X}ms_bw{Y}mbit...csv
     """
     lat_match = re.search(r'lat(\d+)ms', filename)
     bw_match = re.search(r'bw(\d+)mbit', filename)
+    depth_match = re.search(r'_d(\d+)_', filename)
     
     lat = int(lat_match.group(1)) if lat_match else 0
     bw = int(bw_match.group(1)) if bw_match else 0
-    return lat, bw
+    depth = int(depth_match.group(1)) if depth_match else 0
+    return lat, bw, depth
 
 def load_data(log_dir):
     all_files = glob.glob(os.path.join(log_dir, "*.csv"))
@@ -35,7 +37,7 @@ def load_data(log_dir):
             if "lat" not in f or "bw" not in f:
                 continue
                 
-            lat, bw = parse_network_params(f)
+            lat, bw, depth = parse_network_params(f)
             df = pd.read_csv(f)
             
             # Extract key metrics
@@ -71,6 +73,7 @@ def load_data(log_dir):
             data.append({
                 'latency_ms': lat,
                 'bandwidth_mbit': bw,
+                'depth': depth,
                 'avg_update_time_ms': update_time,
                 'avg_query_time_ms': query_time,
                 'total_execution_time_ms': total_time,
@@ -111,11 +114,16 @@ def plot_latency_study(df, output_dir):
     bws = df['bandwidth_mbit'].unique()
     
     for bw in bws:
+        subset = df[df['bandwidth_mbit'] == bw]
+        if subset.empty:
+            continue
+        depth = subset['depth'].iloc[0]
+
         # Plot 1: Avg Update Time
         plot_metric_vs_param(
             df, 'latency_ms', 'avg_update_time_ms', 
             'bandwidth_mbit', bw,
-            f'Average Update Time vs Latency (Bandwidth: {bw} Mbit)',
+            f'Average Update Time vs Latency (Bandwidth: {bw} Mbit, Depth: {depth})',
             'Average Update Time (ms)',
             f"{output_dir}/study_latency_bw{bw}_update.png"
         )
@@ -124,7 +132,7 @@ def plot_latency_study(df, output_dir):
         plot_metric_vs_param(
             df, 'latency_ms', 'avg_query_time_ms', 
             'bandwidth_mbit', bw,
-            f'Average Query Time vs Latency (Bandwidth: {bw} Mbit)',
+            f'Average Query Time vs Latency (Bandwidth: {bw} Mbit, Depth: {depth})',
             'Average Query Time (ms)',
             f"{output_dir}/study_latency_bw{bw}_query.png"
         )
@@ -134,11 +142,16 @@ def plot_bandwidth_study(df, output_dir):
     lats = df['latency_ms'].unique()
     
     for lat in lats:
+        subset = df[df['latency_ms'] == lat]
+        if subset.empty:
+            continue
+        depth = subset['depth'].iloc[0]
+
         # Plot 1: Avg Update Time
         plot_metric_vs_param(
             df, 'bandwidth_mbit', 'avg_update_time_ms', 
             'latency_ms', lat,
-            f'Average Update Time vs Bandwidth (Latency: {lat} ms)',
+            f'Average Update Time vs Bandwidth (Latency: {lat} ms, Depth: {depth})',
             'Average Update Time (ms)',
             f"{output_dir}/study_bandwidth_lat{lat}_update.png"
         )
@@ -147,7 +160,7 @@ def plot_bandwidth_study(df, output_dir):
         plot_metric_vs_param(
             df, 'bandwidth_mbit', 'avg_query_time_ms', 
             'latency_ms', lat,
-            f'Average Query Time vs Bandwidth (Latency: {lat} ms)',
+            f'Average Query Time vs Bandwidth (Latency: {lat} ms, Depth: {depth})',
             'Average Query Time (ms)',
             f"{output_dir}/study_bandwidth_lat{lat}_query.png"
         )
