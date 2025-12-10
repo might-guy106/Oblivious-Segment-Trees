@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# Get the container name (respecting prefix if set)
+container="${PRAC_DOCKER_PREFIX}prac_p0"
+
+echo "Running analysis in $container..."
+
+# Run the python script inside the container
+# We assume the script is at /root/prac/analyze_performance.py and logs are in /root/prac/logs/
+docker exec -w /root/prac $container python3 analyze_performance.py "logs/performance_*.csv"
+
+# Check if analysis was successful
+if [ $? -eq 0 ]; then
+    echo "Analysis complete. Fetching plots..."
+    
+    # Create local directory for plots
+    # cd to project root relative to this script
+    script_dir=$(dirname "$0")
+    project_root="$script_dir/.."
+    
+    mkdir -p "$project_root/logs/plots"
+    
+    # Copy plots from container to host
+    # Note: Using docker cp to copy the contents of the plots directory
+    docker cp "$container:/root/prac/logs/plots/." "$project_root/logs/plots/"
+    
+    echo "Plots saved to $project_root/logs/plots/"
+else
+    echo "Analysis failed."
+    exit 1
+fi

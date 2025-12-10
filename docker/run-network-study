@@ -1,0 +1,89 @@
+#!/bin/bash
+
+# Configuration
+LATENCIES=(5ms 10ms 15ms 20ms 25ms 30ms)
+BANDWIDTHS=(100mbit) # Keep constant for latency study
+# To vary bandwidth, add more entries here, e.g. (10mbit 50mbit 100mbit)
+
+CONTAINER="${PRAC_DOCKER_PREFIX}prac_p0"
+LOG_DIR="/root/prac/logs"
+
+# Ensure we are in the right directory
+if [[ $BASH_SOURCE = */* ]]; then
+  cd -- "${BASH_SOURCE%/*}/" || exit
+fi
+
+echo "===== Starting Network Performance Study ====="
+echo "Latencies: ${LATENCIES[*]}"
+echo "Bandwidths: ${BANDWIDTHS[*]}"
+
+# 1. Clean existing logs in container to avoid confusion
+echo "Cleaning existing logs in container..."
+./clean-logs
+
+# 2. Iterate and Run
+for bw in "${BANDWIDTHS[@]}"; do
+    for lat in "${LATENCIES[@]}"; do
+        echo ""
+        echo ">>> Running with Latency: $lat, Bandwidth: $bw <<<"
+        
+        # Set networking
+        ./set-networking "$lat" "$bw"
+        
+        # Run Experiment (using arguments passed to this script)
+        # Assuming args are like: segmenttree9 -d 4 -u 3 -q 5
+        # We strip '-o' if present to avoid duplication, then force -o
+        ./run-experiment -o "$@"
+        
+        # Rename the log files inside the container
+        # We find the file created most recently or just the one matching the pattern
+        # Since we clean logs, there should be only one pair (csv + log) ideally, 
+        # OR we just grep for the one without tags.
+        
+        # Extract numeric values for cleaner filenames
+        lat_val=$(echo $lat | tr -d 'ms')
+        bw_val=$(echo $bw | tr -d 'mbit')
+        
+        echo "Tagging logs inside container..."
+        
+        docker exec -w /root/prac $CONTAINER bash -c "
+            cd logs
+            # Find the CSV file that doesn't have 'lat' in it yet (the new one)
+            for f in performance_*.csv; do
+                if [[ \"\$f\" != *\"_lat\"* ]]; then
+                    # Create new name
+                    base=\"\${f%.csv}\"
+                    new_name=\"\${base}_lat${lat_val}ms_bw${bw_val}mbit.csv\"
+                    mv \"\$f\" \"\$new_name\"
+                    echo \"Renamed \$f -> \$new_name\"
+                fi
+            done
+            
+            # Do the same for execution log
+            for f in execution_*.log; do
+                if [[ \"\$f\" != *\"_lat\"* ]]; then
+                    base=\"\${f%.log}\"
+                    new_name=\"\${base}_lat${lat_val}ms_bw${bw_val}mbit.log\"
+                    mv \"\$f\" \"\$new_name\"
+                fi
+            done
+        "
+    done
+done
+
+echo ""
+echo "===== Experiments Complete. Running Analysis ====="
+
+# 3. Copy analysis script to container
+# We assume the script is in the same dir as this script
+docker cp analyze-network-study.py "$CONTAINER:/root/prac/"
+
+# 4. Run analysis inside container
+docker exec -w /root/prac $CONTAINER python3 analyze-network-study.py logs/
+
+# 5. Fetch plots
+echo "Fetching plots to ../logs/plots/network_study/ ..."
+mkdir -p ../logs/plots/network_study
+docker cp "$CONTAINER:/root/prac/logs/plots/." "../logs/plots/network_study/"
+
+echo "Done! Check ../logs/plots/network_study/ for results."

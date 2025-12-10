@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# Get the container name (respecting prefix if set)
+container="${PRAC_DOCKER_PREFIX}prac_p0"
+
+echo "Cleaning logs in $container..."
+docker exec -w /root/prac $container rm -rf logs
+echo "Logs cleared."
