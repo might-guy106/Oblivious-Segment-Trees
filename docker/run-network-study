@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Configuration
-LATENCIES=(5ms 10ms 15ms 20ms 25ms 30ms)
-BANDWIDTHS=(100mbit) # Keep constant for latency study
+LATENCIES=(5ms)
+BANDWIDTHS=(10mbit 50mbit 100mbit) # Keep constant for latency study
 # To vary bandwidth, add more entries here, e.g. (10mbit 50mbit 100mbit)
 
 CONTAINER="${PRAC_DOCKER_PREFIX}prac_p0"
