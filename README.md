@@ -139,39 +139,121 @@ No separate preprocessing step is needed.
 
 ## Docker instructions:
 
+### Setup
+
   - `cd docker`
   - `./build-docker`
   - `./start-docker`
-    - This will start three dockers, each running one of the parties
+    - This will start three dockers, each running one of the parties (prac_p0, prac_p1, prac_p2)
 
-Then to simulate network latency and capacity (optional):
+### Running Experiments
 
-  - `./set-networking 30ms 100mbit`
+The Docker workflow supports three modes of execution:
 
-To turn that off again:
+#### 1. Single Experiment (all three phases)
 
-  - `./unset-networking`
+Run a single experiment configuration across all three phases (onlineonly, preprocessing, online):
 
-If you have a NUMA machine, you might want to pin each player to one
-NUMA node.  To do that, set these environment variables before running
-`./run-experiment` below:
+```bash
+./run-single-experiment all <depth> <updates> <queries> [variant] [threads]
+
+# Example: depth=8, updates=5, queries=0, variant=segmenttree9
+./run-single-experiment all 8 5 0 segmenttree9
+```
+
+You can also run individual phases:
+- `./run-single-experiment onlineonly <depth> <updates> <queries>`
+- `./run-single-experiment preprocessing <depth> <updates> <queries>`
+- `./run-single-experiment online <depth> <updates> <queries>`
+
+#### 2. Batch Experiments (multiple depths)
+
+Run experiments across multiple depths and configurations:
+
+```bash
+./run-batch-experiments [--depths "4 6 8 10"] [--updates "5"] [--queries "5"] [--variant segmenttree9]
+
+# Example: Run experiments for depths 4, 6, 8 with default parameters
+./run-batch-experiments --depths "4 6 8"
+```
+
+This will run both update experiments (u=5, q=0) and query experiments (u=0, q=5) for each depth.
+
+#### 3. Network Study
+
+Run comprehensive network studies with varying latency and bandwidth:
+
+```bash
+./run-network-study [--latencies "5 10 20 30"] [--bandwidths "10 50 100"] [--depths "4 6 8"]
+
+# Example: Test different network conditions
+./run-network-study --latencies "5 10 20" --bandwidths "50 100" --depths "4 6 8"
+```
+
+### Retrieving Results
+
+Copy logs and plots from Docker containers to local machine:
+
+```bash
+./bring-plots
+```
+
+This copies:
+- Logs to `../logs/`
+- Plots to `../plots/docker/`
+
+### Analysis
+
+After bringing the data locally, run analysis scripts:
+
+```bash
+cd ..
+
+# Analyze batch experiment results
+python3 python_scripts/analyze_batch_results.py
+
+# Analyze network study results
+python3 python_scripts/analyze_network_study.py logs/
+```
+
+**Plot locations:**
+- Batch experiments: `plots/local/default/`
+- Network study (per config): `plots/local/network/<latency>ms_<bandwidth>mbit/`
+- Network study (impact): `plots/local/network/`
+
+### Utilities
+
+Clean logs and precomputed resources from all containers:
+
+```bash
+./clean-logs
+```
+
+### Network Simulation (Optional)
+
+To simulate network latency and bandwidth:
+
+```bash
+./set-networking 30ms 100mbit
+```
+
+To turn it off:
+
+```bash
+./unset-networking
+```
+
+### NUMA Support (Optional)
+
+If you have a NUMA machine, you can pin each player to one NUMA node by setting these environment variables before running experiments:
 
   - `export PRAC_NUMA_P0="numactl -N 1 -m 1"`
   - `export PRAC_NUMA_P1="numactl -N 2 -m 2"`
   - `export PRAC_NUMA_P2="numactl -N 3 -m 3"`
 
-Adjust the numactl arguments to taste, of course, depending on your
-machine's configuration.  Alternately, you can use things like `-C 0-7`
-instead of `-N 1` to pin to specific cores, even on a non-NUMA machine.
+Adjust the numactl arguments to taste, of course, depending on your machine's configuration. Alternately, you can use things like `-C 0-7` instead of `-N 1` to pin to specific cores, even on a non-NUMA machine.
 
-Run experiments:
-
-  - <code>./run-experiment _opts_ _args_</code>
-    - opts and args are those of `./prac` above, *not including* the
-      player number and other players' addresses, which are filled in
-      automatically.  The number of processing threads for each player
-      is also automatically set to the number of cores available in the
-      given `PRAC_NUMA_P{0,1,2}` configuration.
+### Cleanup
 
 When you're all done:
 

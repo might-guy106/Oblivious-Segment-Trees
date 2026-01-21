@@ -1,0 +1,89 @@
+#!/bin/bash
+
+# Script to copy plots and logs from Docker containers to local machine
+#
+# Usage: ./bring-plots
+#
+# Note: Copies logs from P0 (onlineonly, online) and P2 (preprocessing)
+
+# cd into the directory containing this script
+if [[ $BASH_SOURCE = */* ]]; then
+  cd -- "${BASH_SOURCE%/*}/" || exit
+fi
+
+cd ..
+
+echo "========================================="
+echo "Bringing Plots and Logs from Docker"
+echo "========================================="
+echo ""
+
+# Create local directories
+mkdir -p plots/docker
+mkdir -p logs
+
+# Copy plots from P0 container
+echo "Copying plots from prac_p0..."
+if docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 bash -c "[ -d logs/plots ]" 2>/dev/null; then
+    docker cp ${PRAC_DOCKER_PREFIX}prac_p0:/root/prac/logs/plots/. plots/docker/
+    echo "[OK] Plots copied to: plots/docker/"
+else
+    echo "[Warning] No plots directory found in prac_p0"
+fi
+
+# Copy logs from P0 container (onlineonly and online logs)
+echo ""
+echo "Copying logs from prac_p0 (onlineonly, online)..."
+if docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 bash -c "[ -d logs ]" 2>/dev/null; then
+    docker cp ${PRAC_DOCKER_PREFIX}prac_p0:/root/prac/logs/. logs/
+    echo "[OK] Logs from prac_p0 copied to: logs/"
+else
+    echo "[Warning] No logs directory found in prac_p0"
+fi
+
+# Copy preprocessing logs from P2 container
+echo ""
+echo "Copying preprocessing logs from prac_p2..."
+if docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p2 bash -c "[ -d logs ]" 2>/dev/null; then
+    # Copy only preprocessing files from P2
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p2 bash -c "ls logs/preprocessing_*.csv logs/*preprocessing*.csv 2>/dev/null" | while read -r file; do
+        docker cp ${PRAC_DOCKER_PREFIX}prac_p2:/root/prac/$file logs/ 2>/dev/null
+    done
+    
+    # Check if any preprocessing files were found
+    preproc_count=$(ls -1 logs/preprocessing_*.csv logs/*preprocessing*.csv 2>/dev/null | wc -l)
+    if [ $preproc_count -gt 0 ]; then
+        echo "[OK] Preprocessing logs from prac_p2 copied to: logs/"
+    else
+        echo "[Warning] No preprocessing logs found in prac_p2"
+    fi
+else
+    echo "[Warning] No logs directory found in prac_p2"
+fi
+
+# Count all files
+echo ""
+echo "Counting files..."
+csv_count=$(ls -1 logs/*.csv 2>/dev/null | wc -l)
+log_count=$(ls -1 logs/*.log 2>/dev/null | wc -l)
+onlineonly_count=$(ls -1 logs/*onlineonly*.csv 2>/dev/null | wc -l)
+preprocessing_count=$(ls -1 logs/*preprocessing*.csv 2>/dev/null | wc -l)
+online_count=$(ls -1 logs/*online*.csv 2>/dev/null | grep -v onlineonly | wc -l)
+
+echo "  - Total CSV files: $csv_count"
+echo "  - Total Log files: $log_count"
+echo "  - OnlineOnly logs: $onlineonly_count"
+echo "  - Preprocessing logs: $preprocessing_count"
+echo "  - Online logs: $online_count"
+
+echo ""
+echo "========================================="
+echo "Transfer Complete"
+echo "========================================="
+echo "Plots location: plots/docker/"
+echo "Logs location: logs/"
+echo ""
+echo "Next steps:"
+echo "  - For batch analysis: python3 python_scripts/analyze_batch_results.py"
+echo "  - For network study: python3 python_scripts/analyze_network_study.py logs/"
+echo "========================================="

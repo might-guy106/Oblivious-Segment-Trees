@@ -1,0 +1,133 @@
+#!/bin/bash
+
+# Batch experiment runner for Docker containers
+# Runs experiments across multiple configurations (depths, updates, queries)
+#
+# Usage: ./run-batch-experiments [--depths "4 6 8 10"] [--updates "5"] [--queries "5"] [--variant segmenttree9] [--threads 8]
+
+set -e
+
+# cd into the directory containing this script
+if [[ $BASH_SOURCE = */* ]]; then
+  cd -- "${BASH_SOURCE%/*}/" || exit
+fi
+
+# Default values
+DEPTHS="4 8 12 16"
+UPDATES="5"
+QUERIES="5"
+VARIANT="segmenttree9"
+THREADS="8"
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --depths)
+            DEPTHS="$2"
+            shift 2
+            ;;
+        --updates)
+            UPDATES="$2"
+            shift 2
+            ;;
+        --queries)
+            QUERIES="$2"
+            shift 2
+            ;;
+        --variant)
+            VARIANT="$2"
+            shift 2
+            ;;
+        --threads)
+            THREADS="$2"
+            shift 2
+            ;;
+        -h|--help)
+            echo "Usage: $0 [options]"
+            echo ""
+            echo "Options:"
+            echo "  --depths \"4 6 8 10\"       Space-separated list of depths (default: \"4 6 8 10 12 14 16\")"
+            echo "  --updates \"5\"             Number of updates per experiment (default: \"5\")"
+            echo "  --queries \"5\"             Number of queries per experiment (default: \"5\")"
+            echo "  --variant segmenttree9   Segment tree variant (default: segmenttree9)"
+            echo "  --threads auto           Number of threads or 'auto' (default: auto)"
+            echo ""
+            echo "Example:"
+            echo "  $0 --depths \"4 6 8\" --updates \"5\" --queries \"5\" --variant segmenttree9"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
+# Convert depths string to array
+read -ra DEPTH_ARRAY <<< "$DEPTHS"
+
+echo "========================================="
+echo "Docker Batch Experiments Runner"
+echo "========================================="
+echo "Variant: $VARIANT"
+echo "Depths: ${DEPTH_ARRAY[*]}"
+echo "Updates: $UPDATES"
+echo "Queries: $QUERIES"
+echo "Threads: $THREADS"
+echo "========================================="
+echo ""
+
+TOTAL_EXPERIMENTS=$((${#DEPTH_ARRAY[@]} * 2))  # Each depth has update and query experiments
+CURRENT_EXP=0
+
+# Function to run single configuration
+run_configuration() {
+    local depth=$1
+    local updates=$2
+    local queries=$3
+    local config_type=$4  # "update" or "query"
+
+    CURRENT_EXP=$((CURRENT_EXP + 1))
+
+    echo ""
+    echo "========================================="
+    echo "Experiment $CURRENT_EXP/$TOTAL_EXPERIMENTS: Depth=$depth, Updates=$updates, Queries=$queries ($config_type)"
+    echo "========================================="
+
+    # Determine thread argument
+    if [ "$THREADS" = "auto" ]; then
+        ./run-single-experiment all $depth $updates $queries $VARIANT
+    else
+        ./run-single-experiment all $depth $updates $queries $VARIANT $THREADS
+    fi
+
+    echo "Experiment $CURRENT_EXP/$TOTAL_EXPERIMENTS completed"
+    echo ""
+    sleep 2
+}
+
+# Main loop: for each depth, run update and query experiments
+for depth in "${DEPTH_ARRAY[@]}"; do
+    # Update experiment: updates=UPDATES, queries=0
+    run_configuration $depth $UPDATES 0 "update"
+
+    # Query experiment: updates=0, queries=QUERIES
+    run_configuration $depth 0 $QUERIES "query"
+done
+
+echo ""
+echo "========================================="
+echo "All Batch Experiments Completed!"
+echo "========================================="
+echo "Total experiments run: $TOTAL_EXPERIMENTS"
+echo "Depths tested: ${DEPTH_ARRAY[*]}"
+echo ""
+echo "Logs are available in the container at: /root/prac/logs/"
+echo "To copy plots to local machine, run:"
+echo "  ./bring-plots"
+echo ""
+echo "To analyze results, run:"
+echo "  cd .."
+echo "  python3 python_scripts/analyze_batch_results.py"
+echo "========================================="

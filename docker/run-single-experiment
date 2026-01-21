@@ -1,0 +1,231 @@
+#!/bin/bash
+
+# Single experiment runner for Docker containers
+# Runs experiments in onlineonly, preprocessing, online, or all modes
+#
+# Usage: ./run-single-experiment <mode> <depth> <updates> <queries> [variant] [threads]
+#   mode: "onlineonly" | "preprocessing" | "online" | "all"
+#   depth: Tree depth (e.g., 4, 6, 8, 10, 12, 14, 16)
+#   updates: Number of updates (e.g., 5, 0)
+#   queries: Number of queries (e.g., 0, 5)
+#   variant: Segment tree variant (default: segmenttree9)
+#   threads: Number of threads (default: auto-detect from container)
+
+set -e
+
+# cd into the directory containing this script
+if [[ $BASH_SOURCE = */* ]]; then
+  cd -- "${BASH_SOURCE%/*}/" || exit
+fi
+
+# Parse arguments
+MODE=$1
+DEPTH=$2
+UPDATES=$3
+QUERIES=$4
+VARIANT=${5:-segmenttree9}
+THREADS_ARG=$6
+
+if [ -z "$MODE" ] || [ -z "$DEPTH" ] || [ -z "$UPDATES" ] || [ -z "$QUERIES" ]; then
+    echo "Usage: $0 <mode> <depth> <updates> <queries> [variant] [threads]"
+    echo "  mode: onlineonly | preprocessing | online | all"
+    echo "  depth: Tree depth (e.g., 4, 6, 8)"
+    echo "  updates: Number of updates (e.g., 5, 0)"
+    echo "  queries: Number of queries (e.g., 0, 5)"
+    echo "  variant: Segment tree variant (default: segmenttree9)"
+    echo "  threads: Number of threads (default: auto-detect)"
+    exit 1
+fi
+
+# Validate mode
+if [[ "$MODE" != "onlineonly" && "$MODE" != "preprocessing" && "$MODE" != "online" && "$MODE" != "all" ]]; then
+    echo "Error: Invalid mode '$MODE'. Must be: onlineonly, preprocessing, online, or all"
+    exit 1
+fi
+
+# Get the IP addresses
+p0addr=$(docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${PRAC_DOCKER_PREFIX}prac_p0)
+p1addr=$(docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${PRAC_DOCKER_PREFIX}prac_p1)
+
+# Get the number of cores usable by each party
+if [ -n "$THREADS_ARG" ]; then
+    ncores_p0=$THREADS_ARG
+    ncores_p1=$THREADS_ARG
+    ncores_p2=$THREADS_ARG
+else
+    ncores_p0=$(docker exec -i ${PRAC_DOCKER_PREFIX}prac_p0 $PRAC_NUMA_P0 nproc 2>/dev/null || echo 1)
+    ncores_p1=$(docker exec -i ${PRAC_DOCKER_PREFIX}prac_p1 $PRAC_NUMA_P1 nproc 2>/dev/null || echo 1)
+    ncores_p2=$(docker exec -i ${PRAC_DOCKER_PREFIX}prac_p2 $PRAC_NUMA_P2 nproc 2>/dev/null || echo 1)
+fi
+
+targ_p0="-t ${ncores_p0}"
+targ_p1="-t ${ncores_p1}"
+targ_p2="-t ${ncores_p2}"
+
+echo "========================================="
+echo "Docker Single Experiment Runner"
+echo "========================================="
+echo "Mode: $MODE"
+echo "Variant: $VARIANT"
+echo "Depth: $DEPTH"
+echo "Updates: $UPDATES"
+echo "Queries: $QUERIES"
+echo "Usable cores: P0=${ncores_p0}, P1=${ncores_p1}, P2=${ncores_p2}"
+echo "========================================="
+
+# Function to run onlineonly mode
+run_onlineonly() {
+    echo ""
+    echo "===== Running ONLINEONLY mode ====="
+    date "+===== Start %s %F %T"
+    
+    savefile0=$$.p0.onlineonly.out
+    savefile1=$$.p1.onlineonly.out
+    savefile2=$$.p2.onlineonly.out
+    resources_file="/tmp/resources_${DEPTH}_${UPDATES}_${QUERIES}.txt"
+    
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 bash -c "$PRAC_NUMA_P0 stdbuf -o 0 ./prac -o $targ_p0 0 $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES > $savefile0 2>&1" &
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p1 bash -c "$PRAC_NUMA_P1 stdbuf -o 0 ./prac -o $targ_p1 1 $p0addr $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES > $savefile1 2>&1" &
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p2 bash -c "$PRAC_NUMA_P2 stdbuf -o 0 ./prac -o $targ_p2 2 $p0addr $p1addr $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES > $savefile2 2>&1" &
+    wait
+    
+    echo "===== P0 output (onlineonly) ====="
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 cat $savefile0
+    
+    # Extract resources from output in each container independently
+    echo "Extracting resource requirements from onlineonly output..."
+    RESOURCES=$(docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 bash -c "grep 'Precomputed values used:' $savefile0 | tail -1 | sed 's/.*T0 //'")
+    echo "$RESOURCES"
+    
+    # Each container extracts and saves its own resources file
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 bash -c "grep 'Precomputed values used:' $savefile0 | tail -1 | sed 's/.*T0 //' > $resources_file"
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p1 bash -c "grep 'Precomputed values used:' $savefile1 | tail -1 | sed 's/.*T0 //' > $resources_file"
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p2 bash -c "grep 'Precomputed values used:' $savefile2 | tail -1 | sed 's/.*T0 //' > $resources_file"
+    
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 rm -f $savefile0
+    echo "===== P1 output (onlineonly) ====="
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p1 cat $savefile1
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p1 rm -f $savefile1
+    echo "===== P2 output (onlineonly) ====="
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p2 cat $savefile2
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p2 rm -f $savefile2
+    
+    date "+===== End %s %F %T"
+}
+
+# Function to run preprocessing mode
+run_preprocessing() {
+    echo ""
+    echo "===== Running PREPROCESSING mode ====="
+    date "+===== Start %s %F %T"
+    
+    # Resources should have been extracted by onlineonly run
+    resources_file="/tmp/resources_${DEPTH}_${UPDATES}_${QUERIES}.txt"
+    
+    # Check if resources file exists
+    if ! docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 bash -c "[ -f $resources_file ]" 2>/dev/null; then
+        echo "Warning: Resources file not found at $resources_file"
+        echo "Make sure to run onlineonly mode first to extract resource requirements"
+        echo "Preprocessing will proceed but may fail without proper resources"
+        docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 bash -c "echo '' > $resources_file"
+    else
+        echo "Using resources from file:"
+        docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 bash -c "cat $resources_file"
+    fi
+    
+    savefile0=$$.p0.preproc.out
+    savefile1=$$.p1.preproc.out
+    savefile2=$$.p2.preproc.out
+    
+    # Run preprocessing - Player 0 first to accept connections
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 bash -c "$PRAC_NUMA_P0 stdbuf -o 0 ./prac -p $targ_p0 0 > $savefile0 2>&1" &
+    sleep 1
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p1 bash -c "$PRAC_NUMA_P1 stdbuf -o 0 ./prac -p $targ_p1 1 $p0addr > $savefile1 2>&1" &
+    sleep 1
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p2 bash -c "
+        RESOURCES=\$(cat $resources_file)
+        $PRAC_NUMA_P2 stdbuf -o 0 ./prac -p $targ_p2 2 $p0addr $p1addr \$RESOURCES > $savefile2 2>&1
+    " &
+    wait
+    
+    echo "===== P0 output (preprocessing) ====="
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 cat $savefile0
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 rm -f $savefile0
+    echo "===== P1 output (preprocessing) ====="
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p1 cat $savefile1
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p1 rm -f $savefile1
+    echo "===== P2 output (preprocessing) ====="
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p2 cat $savefile2
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p2 rm -f $savefile2
+    
+    # Rename preprocessing log to include variant info (in P2 container)
+    echo "Renaming preprocessing log to include variant..."
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p2 bash -c "
+        PREPROC=\$(ls -t logs/preprocessing_*.csv 2>/dev/null | head -n1)
+        if [ -n \"\$PREPROC\" ]; then
+            TIMESTAMP=\$(basename \"\$PREPROC\" | sed -E 's/preprocessing_([0-9]{8}_[0-9]{6})\.csv/\1/')
+            mv \"\$PREPROC\" logs/performance_preprocessing_st9_d${DEPTH}_u${UPDATES}_q${QUERIES}_\${TIMESTAMP}.csv
+            echo \"Renamed to: performance_preprocessing_st9_d${DEPTH}_u${UPDATES}_q${QUERIES}_\${TIMESTAMP}.csv\"
+        fi
+    "
+    
+    # Clean up resources file from all containers
+    for container in ${PRAC_DOCKER_PREFIX}prac_p0 ${PRAC_DOCKER_PREFIX}prac_p1 ${PRAC_DOCKER_PREFIX}prac_p2; do
+        docker exec -w /root/prac $container rm -f $resources_file 2>/dev/null
+    done
+    
+    date "+===== End %s %F %T"
+}
+
+# Function to run online mode
+run_online() {
+    echo ""
+    echo "===== Running ONLINE mode ====="
+    date "+===== Start %s %F %T"
+    
+    savefile0=$$.p0.online.out
+    savefile1=$$.p1.online.out
+    savefile2=$$.p2.online.out
+    
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 bash -c "$PRAC_NUMA_P0 stdbuf -o 0 ./prac $targ_p0 0 $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES > $savefile0 2>&1" &
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p1 bash -c "$PRAC_NUMA_P1 stdbuf -o 0 ./prac $targ_p1 1 $p0addr $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES > $savefile1 2>&1" &
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p2 bash -c "$PRAC_NUMA_P2 stdbuf -o 0 ./prac $targ_p2 2 $p0addr $p1addr $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES > $savefile2 2>&1" &
+    wait
+    
+    echo "===== P0 output (online) ====="
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 cat $savefile0
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 rm -f $savefile0
+    echo "===== P1 output (online) ====="
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p1 cat $savefile1
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p1 rm -f $savefile1
+    echo "===== P2 output (online) ====="
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p2 cat $savefile2
+    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p2 rm -f $savefile2
+    
+    date "+===== End %s %F %T"
+}
+
+# Execute based on mode
+case "$MODE" in
+    onlineonly)
+        run_onlineonly
+        ;;
+    preprocessing)
+        run_preprocessing
+        ;;
+    online)
+        run_online
+        ;;
+    all)
+        run_onlineonly
+        sleep 2
+        run_preprocessing
+        sleep 2
+        run_online
+        ;;
+esac
+
+echo ""
+echo "========================================="
+echo "Experiment completed: $MODE mode"
+echo "========================================="

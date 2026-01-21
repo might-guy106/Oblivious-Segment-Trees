@@ -1,8 +1,36 @@
 #!/bin/bash
 
-# Get the container name (respecting prefix if set)
-container="${PRAC_DOCKER_PREFIX}prac_p0"
+# Clean logs, plots, and precomputed resources from all Docker containers
+#
+# Usage: ./clean-logs
 
-echo "Cleaning logs in $container..."
-docker exec -w /root/prac $container rm -rf logs
-echo "Logs cleared."
+echo "========================================="
+echo "Cleaning Docker Containers"
+echo "========================================="
+
+for container in ${PRAC_DOCKER_PREFIX}prac_p0 ${PRAC_DOCKER_PREFIX}prac_p1 ${PRAC_DOCKER_PREFIX}prac_p2; do
+    echo ""
+    echo "Cleaning $container..."
+    
+    # Remove logs directory
+    docker exec -w /root/prac $container bash -c "rm -rf logs" 2>/dev/null
+    echo "  - Logs cleared"
+    
+    # Remove plots directory
+    docker exec -w /root/prac $container bash -c "rm -rf plots" 2>/dev/null
+    echo "  - Plots cleared"
+    
+    # Remove precomputed resources (*t0 files)
+    docker exec -w /root/prac $container bash -c "rm -rf *t0" 2>/dev/null
+    echo "  - Precomputed resources (*t0) cleared"
+    
+    # Remove temporary files
+    docker exec -w /root/prac $container bash -c "rm -f /tmp/resources_*.txt" 2>/dev/null
+    docker exec -w /root/prac $container bash -c "rm -f /tmp/phase1_output_*.log" 2>/dev/null
+    echo "  - Temporary files cleared"
+done
+
+echo ""
+echo "========================================="
+echo "All containers cleaned"
+echo "========================================="

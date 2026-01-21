@@ -7,6 +7,9 @@
 # Logs directory
 logs/
 
+#plots
+plots/
+
 # Other common files to ignore
 *.exe
 *.out

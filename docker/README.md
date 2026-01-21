@@ -122,3 +122,109 @@ When finished, stop and remove the containers:
 ## Troubleshooting
 - **Code Changes**: If you edit `../segmentTree9.cpp`, you **must** run `./build-docker` again. The container has its own copy of the code.
 - **Permissions**: Ensure scripts have execute permissions (`chmod +x *`).
+
+# Docker instructions:
+
+### Setup
+
+  - `cd docker`
+  - `./build-docker`
+  - `./start-docker`
+    - This will start three dockers, each running one of the parties (prac_p0, prac_p1, prac_p2)
+
+### Running Experiments
+
+The Docker workflow supports three modes of execution:
+
+#### 1. Single Experiment (all three phases)
+
+Run a single experiment configuration across all three phases (onlineonly, preprocessing, online):
+
+```bash
+./run-single-experiment all <depth> <updates> <queries> [variant] [threads]
+
+# Example: depth=8, updates=5, queries=0, variant=segmenttree9
+./run-single-experiment all 8 5 0 segmenttree9
+```
+
+You can also run individual phases:
+- `./run-single-experiment onlineonly <depth> <updates> <queries>`
+- `./run-single-experiment preprocessing <depth> <updates> <queries>`
+- `./run-single-experiment online <depth> <updates> <queries>`
+
+#### 2. Batch Experiments (multiple depths)
+
+Run experiments across multiple depths and configurations:
+
+```bash
+./run-batch-experiments [--depths "4 6 8 10"] [--updates "5"] [--queries "5"] [--variant segmenttree9]
+
+# Example: Run experiments for depths 4, 6, 8 with default parameters
+./run-batch-experiments --depths "4 6 8"
+```
+
+This will run both update experiments (u=5, q=0) and query experiments (u=0, q=5) for each depth.
+
+#### 3. Network Study
+
+Run comprehensive network studies with varying latency and bandwidth:
+
+```bash
+./run-network-study [--latencies "5 10 20 30"] [--bandwidths "10 50 100"] [--depths "4 6 8"]
+
+# Example: Test different network conditions
+./run-network-study --latencies "5 10 20" --bandwidths "50 100" --depths "4 6 8"
+```
+
+### Retrieving Results
+
+Copy logs and plots from Docker containers to local machine:
+
+```bash
+./bring-plots
+```
+
+This copies:
+- Logs to `../logs/`
+- Plots to `../plots/docker/`
+
+### Analysis
+
+After bringing the data locally, run analysis scripts:
+
+```bash
+cd ..
+
+# Analyze batch experiment results
+python3 python_scripts/analyze_batch_results.py
+
+# Analyze network study results
+python3 python_scripts/analyze_network_study.py logs/
+```
+
+**Plot locations:**
+- Batch experiments: `plots/local/default/`
+- Network study (per config): `plots/local/network/<latency>ms_<bandwidth>mbit/`
+- Network study (impact): `plots/local/network/`
+
+### Utilities
+
+Clean logs and precomputed resources from all containers:
+
+```bash
+./clean-logs
+```
+
+### Network Simulation (Optional)
+
+To simulate network latency and bandwidth:
+
+```bash
+./set-networking 30ms 100mbit
+```
+
+To turn it off:
+
+```bash
+./unset-networking
+```

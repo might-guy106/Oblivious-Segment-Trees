@@ -1,57 +1,127 @@
 #!/bin/bash
 
-# Configuration
-LATENCIES=(5ms)
-BANDWIDTHS=(10mbit 50mbit 100mbit) # Keep constant for latency study
-# To vary bandwidth, add more entries here, e.g. (10mbit 50mbit 100mbit)
+# Network study runner for Docker containers
+# Runs comprehensive network studies with varying latency/bandwidth
+# For each network configuration, runs full batch experiments (all depths, modes)
+#
+# Usage: ./run-network-study [--latencies "5 10 20 30"] [--bandwidths "10 50 100"] [--depths "4 6 8"] [--variant segmenttree9]
 
-CONTAINER="${PRAC_DOCKER_PREFIX}prac_p0"
-LOG_DIR="/root/prac/logs"
+set -e
 
-# Ensure we are in the right directory
+# cd into the directory containing this script
 if [[ $BASH_SOURCE = */* ]]; then
   cd -- "${BASH_SOURCE%/*}/" || exit
 fi
 
-echo "===== Starting Network Performance Study ====="
-echo "Latencies: ${LATENCIES[*]}"
-echo "Bandwidths: ${BANDWIDTHS[*]}"
+# Default values (smaller subset for network studies)
+LATENCIES="5 10 20 30"
+BANDWIDTHS="10 50 100"
+DEPTHS="4 6 8"
+VARIANT="segmenttree9"
+UPDATES="5"
+QUERIES="5"
 
-# 1. Clean existing logs in container to avoid confusion
-echo "Cleaning existing logs in container..."
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --latencies)
+            LATENCIES="$2"
+            shift 2
+            ;;
+        --bandwidths)
+            BANDWIDTHS="$2"
+            shift 2
+            ;;
+        --depths)
+            DEPTHS="$2"
+            shift 2
+            ;;
+        --variant)
+            VARIANT="$2"
+            shift 2
+            ;;
+        --updates)
+            UPDATES="$2"
+            shift 2
+            ;;
+        --queries)
+            QUERIES="$2"
+            shift 2
+            ;;
+        -h|--help)
+            echo "Usage: $0 [options]"
+            echo ""
+            echo "Options:"
+            echo "  --latencies \"5 10 20 30\"     Space-separated latencies in ms (default: \"5 10 20 30\")"
+            echo "  --bandwidths \"10 50 100\"     Space-separated bandwidths in mbit (default: \"10 50 100\")"
+            echo "  --depths \"4 6 8\"             Space-separated depths (default: \"4 6 8\")"
+            echo "  --variant segmenttree9       Segment tree variant (default: segmenttree9)"
+            echo "  --updates \"5\"                Number of updates (default: \"5\")"
+            echo "  --queries \"5\"                Number of queries (default: \"5\")"
+            echo ""
+            echo "Example:"
+            echo "  $0 --latencies \"5 10\" --bandwidths \"50 100\" --depths \"4 6 8\""
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
+# Convert to arrays
+read -ra LAT_ARRAY <<< "$LATENCIES"
+read -ra BW_ARRAY <<< "$BANDWIDTHS"
+
+TOTAL_CONFIGS=$((${#LAT_ARRAY[@]} * ${#BW_ARRAY[@]}))
+CURRENT_CONFIG=0
+
+echo "========================================="
+echo "Docker Network Study Runner"
+echo "========================================="
+echo "Latencies: ${LAT_ARRAY[*]} ms"
+echo "Bandwidths: ${BW_ARRAY[*]} mbit"
+echo "Depths: $DEPTHS"
+echo "Variant: $VARIANT"
+echo "Total network configurations: $TOTAL_CONFIGS"
+echo "========================================="
+echo ""
+
+# Clean existing logs before starting
+echo "Cleaning existing logs in containers..."
 ./clean-logs
 
-# 2. Iterate and Run
-for bw in "${BANDWIDTHS[@]}"; do
-    for lat in "${LATENCIES[@]}"; do
+# Iterate through all network configurations
+for lat in "${LAT_ARRAY[@]}"; do
+    for bw in "${BW_ARRAY[@]}"; do
+        CURRENT_CONFIG=$((CURRENT_CONFIG + 1))
+        
         echo ""
-        echo ">>> Running with Latency: $lat, Bandwidth: $bw <<<"
+        echo "========================================="
+        echo "Network Configuration $CURRENT_CONFIG/$TOTAL_CONFIGS"
+        echo "Latency: ${lat}ms, Bandwidth: ${bw}mbit"
+        echo "========================================="
         
-        # Set networking
-        ./set-networking "$lat" "$bw"
+        # Set network parameters
+        echo "Setting network parameters..."
+        ./set-networking "${lat}ms" "${bw}mbit"
         
-        # Run Experiment (using arguments passed to this script)
-        # Assuming args are like: segmenttree9 -d 4 -u 3 -q 5
-        # We strip '-o' if present to avoid duplication, then force -o
-        ./run-experiment -o "$@"
+        # Run batch experiments for this network configuration
+        echo "Running batch experiments with current network settings..."
+        ./run-batch-experiments --depths "$DEPTHS" --updates "$UPDATES" --queries "$QUERIES" --variant "$VARIANT"
         
-        # Rename the log files inside the container
-        # We find the file created most recently or just the one matching the pattern
-        # Since we clean logs, there should be only one pair (csv + log) ideally, 
-        # OR we just grep for the one without tags.
-        
-        # Extract numeric values for cleaner filenames
+        # Tag all logs with network parameters
+        echo "Tagging logs with network parameters..."
         lat_val=$(echo $lat | tr -d 'ms')
         bw_val=$(echo $bw | tr -d 'mbit')
         
-        echo "Tagging logs inside container..."
-        
-        docker exec -w /root/prac $CONTAINER bash -c "
+        docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 bash -c "
             cd logs
-            # Find the CSV file that doesn't have 'lat' in it yet (the new one)
+            # Tag CSV files
             for f in performance_*.csv; do
                 if [[ \"\$f\" != *\"_lat\"* ]]; then
-                    # Create new name
                     base=\"\${f%.csv}\"
                     new_name=\"\${base}_lat${lat_val}ms_bw${bw_val}mbit.csv\"
                     mv \"\$f\" \"\$new_name\"
@@ -59,31 +129,44 @@ for bw in "${BANDWIDTHS[@]}"; do
                 fi
             done
             
-            # Do the same for execution log
+            # Tag execution log files
             for f in execution_*.log; do
                 if [[ \"\$f\" != *\"_lat\"* ]]; then
                     base=\"\${f%.log}\"
                     new_name=\"\${base}_lat${lat_val}ms_bw${bw_val}mbit.log\"
                     mv \"\$f\" \"\$new_name\"
+                    echo \"Renamed \$f -> \$new_name\"
                 fi
             done
         "
+        
+        # Unset network parameters before next iteration
+        echo "Unsetting network parameters..."
+        ./unset-networking
+        
+        echo "Network configuration $CURRENT_CONFIG/$TOTAL_CONFIGS completed"
+        sleep 2
     done
 done
 
 echo ""
-echo "===== Experiments Complete. Running Analysis ====="
-
-# 3. Copy analysis script to container
-# We assume the script is in the same dir as this script
-docker cp analyze-network-study.py "$CONTAINER:/root/prac/"
-
-# 4. Run analysis inside container
-docker exec -w /root/prac $CONTAINER python3 analyze-network-study.py logs/
-
-# 5. Fetch plots
-echo "Fetching plots to ../logs/plots/network_study/ ..."
-mkdir -p ../logs/plots/network_study
-docker cp "$CONTAINER:/root/prac/logs/plots/." "../logs/plots/network_study/"
-
-echo "Done! Check ../logs/plots/network_study/ for results."
+echo "========================================="
+echo "All Network Study Experiments Completed!"
+echo "========================================="
+echo "Total network configurations tested: $TOTAL_CONFIGS"
+echo "Latencies: ${LAT_ARRAY[*]} ms"
+echo "Bandwidths: ${BW_ARRAY[*]} mbit"
+echo "Depths: $DEPTHS"
+echo ""
+echo "Logs are available in the container at: /root/prac/logs/"
+echo ""
+echo "To copy logs and plots to local machine, run:"
+echo "  ./bring-plots"
+echo ""
+echo "To analyze network study results, run:"
+echo "  cd .."
+echo "  # First copy logs from container"
+echo "  docker cp \${PRAC_DOCKER_PREFIX}prac_p0:/root/prac/logs/. logs/"
+echo "  # Then run analysis"
+echo "  python3 python_scripts/analyze_network_study.py"
+echo "========================================="
