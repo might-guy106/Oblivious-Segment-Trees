@@ -31,137 +31,137 @@ def load_performance_data(csv_path):
     df = pd.read_csv(csv_path)
     return df
 
-def analyze_single_experiment(df):
-    """Analyze a single experiment's performance"""
-    exp_id = df['experiment_id'].iloc[0]
-    mode = df['mode'].iloc[0] if 'mode' in df.columns else 'unknown'
-    depth = df['depth'].iloc[0]
-    updates = df['num_updates'].iloc[0]
-    queries = df['num_queries'].iloc[0]
+# def analyze_single_experiment(df):
+#     """Analyze a single experiment's performance"""
+#     exp_id = df['experiment_id'].iloc[0]
+#     mode = df['mode'].iloc[0] if 'mode' in df.columns else 'unknown'
+#     depth = df['depth'].iloc[0]
+#     updates = df['num_updates'].iloc[0]
+#     queries = df['num_queries'].iloc[0]
     
-    # Create header panel
-    header = Panel(
-        f"[bold blue]Experiment:[/bold blue] {exp_id}\n"
-        f"[bold yellow]Mode:[/bold yellow] {mode}\n"
-        f"[bold green]Configuration:[/bold green] depth={depth}, updates={updates}, queries={queries}",
-        title="[bold cyan]Experiment Analysis[/bold cyan]",
-        border_style="blue",
-        box=box.SQUARE
-    )
-    console.print(header)
+#     # Create header panel
+#     header = Panel(
+#         f"[bold blue]Experiment:[/bold blue] {exp_id}\n"
+#         f"[bold yellow]Mode:[/bold yellow] {mode}\n"
+#         f"[bold green]Configuration:[/bold green] depth={depth}, updates={updates}, queries={queries}",
+#         title="[bold cyan]Experiment Analysis[/bold cyan]",
+#         border_style="blue",
+#         box=box.SQUARE
+#     )
+#     console.print(header)
     
-    # Initialization stats
-    init_data = df[df['phase'] == 'init']
-    if not init_data.empty:
-        init_time = init_data[init_data['metric'] == 'initialization_time']['value'].iloc[0]
-        console.print(f"\n[bold yellow]Initialization Time:[/bold yellow] [green]{init_time:.2f} ms[/green]")
+#     # Initialization stats
+#     init_data = df[df['phase'] == 'init']
+#     if not init_data.empty:
+#         init_time = init_data[init_data['metric'] == 'initialization_time']['value'].iloc[0]
+#         console.print(f"\n[bold yellow]Initialization Time:[/bold yellow] [green]{init_time:.2f} ms[/green]")
     
-    # Update phase analysis
-    update_data = df[df['phase'] == 'update']
-    if not update_data.empty:
-        console.print("\n[bold magenta]--- Update Operations ---[/bold magenta]")
+#     # Update phase analysis
+#     update_data = df[df['phase'] == 'update']
+#     if not update_data.empty:
+#         console.print("\n[bold magenta]--- Update Operations ---[/bold magenta]")
         
-        update_table = Table(title="Update Performance Metrics", box=box.SQUARE)
-        update_table.add_column("Metric", style="cyan", no_wrap=True)
-        update_table.add_column("Average", style="green")
-        update_table.add_column("Std Dev", style="yellow")
-        update_table.add_column("Min", style="blue")
-        update_table.add_column("Max", style="red")
+#         update_table = Table(title="Update Performance Metrics", box=box.SQUARE)
+#         update_table.add_column("Metric", style="cyan", no_wrap=True)
+#         update_table.add_column("Average", style="green")
+#         update_table.add_column("Std Dev", style="yellow")
+#         update_table.add_column("Min", style="blue")
+#         update_table.add_column("Max", style="red")
         
-        # Path computation times
-        path_times = update_data[update_data['metric'] == 'path_computation_time']['value']
-        if not path_times.empty:
-            update_table.add_row(
-                "Path Computation (ms)",
-                f"{path_times.mean():.2f}",
-                f"{path_times.std():.2f}",
-                f"{path_times.min():.2f}",
-                f"{path_times.max():.2f}"
-            )
+#         # Path computation times
+#         path_times = update_data[update_data['metric'] == 'path_computation_time']['value']
+#         if not path_times.empty:
+#             update_table.add_row(
+#                 "Path Computation (ms)",
+#                 f"{path_times.mean():.2f}",
+#                 f"{path_times.std():.2f}",
+#                 f"{path_times.min():.2f}",
+#                 f"{path_times.max():.2f}"
+#             )
         
-        # Parallel update times
-        parallel_times = update_data[update_data['metric'] == 'parallel_updates_time']['value']
-        if not parallel_times.empty:
-            update_table.add_row(
-                "Parallel Updates (ms)",
-                f"{parallel_times.mean():.2f}",
-                f"{parallel_times.std():.2f}",
-                f"{parallel_times.min():.2f}",
-                f"{parallel_times.max():.2f}"
-            )
+#         # Parallel update times
+#         parallel_times = update_data[update_data['metric'] == 'parallel_updates_time']['value']
+#         if not parallel_times.empty:
+#             update_table.add_row(
+#                 "Parallel Updates (ms)",
+#                 f"{parallel_times.mean():.2f}",
+#                 f"{parallel_times.std():.2f}",
+#                 f"{parallel_times.min():.2f}",
+#                 f"{parallel_times.max():.2f}"
+#             )
         
-        console.print(update_table)
+#         console.print(update_table)
         
-        # Total update time
-        total_update = update_data[update_data['metric'] == 'total_update_time']['value']
-        if not total_update.empty:
-            console.print(f"[bold yellow]Total Update Time:[/bold yellow] [green]{total_update.sum():.2f}ms[/green] "
-                         f"[dim](avg per update: {total_update.mean():.2f}ms)[/dim]")
+#         # Total update time
+#         total_update = update_data[update_data['metric'] == 'total_update_time']['value']
+#         if not total_update.empty:
+#             console.print(f"[bold yellow]Total Update Time:[/bold yellow] [green]{total_update.sum():.2f}ms[/green] "
+#                          f"[dim](avg per update: {total_update.mean():.2f}ms)[/dim]")
     
-    # Query phase analysis
-    query_data = df[df['phase'] == 'query']
-    if not query_data.empty:
-        console.print("\n[bold magenta]--- Range Sum Query Operations ---[/bold magenta]")
+#     # Query phase analysis
+#     query_data = df[df['phase'] == 'query']
+#     if not query_data.empty:
+#         console.print("\n[bold magenta]--- Range Sum Query Operations ---[/bold magenta]")
         
-        query_table = Table(title="Query Performance Metrics", box=box.SQUARE)
-        query_table.add_column("Metric", style="cyan", no_wrap=True)
-        query_table.add_column("Average", style="green")
-        query_table.add_column("Std Dev", style="yellow")
-        query_table.add_column("Min", style="blue")
-        query_table.add_column("Max", style="red")
+#         query_table = Table(title="Query Performance Metrics", box=box.SQUARE)
+#         query_table.add_column("Metric", style="cyan", no_wrap=True)
+#         query_table.add_column("Average", style="green")
+#         query_table.add_column("Std Dev", style="yellow")
+#         query_table.add_column("Min", style="blue")
+#         query_table.add_column("Max", style="red")
         
-        # Path computation times
-        path_times = query_data[query_data['metric'] == 'path_computation_time']['value']
-        if not path_times.empty:
-            query_table.add_row(
-                "Path Computation (ms)",
-                f"{path_times.mean():.2f}",
-                f"{path_times.std():.2f}",
-                f"{path_times.min():.2f}",
-                f"{path_times.max():.2f}"
-            )
+#         # Path computation times
+#         path_times = query_data[query_data['metric'] == 'path_computation_time']['value']
+#         if not path_times.empty:
+#             query_table.add_row(
+#                 "Path Computation (ms)",
+#                 f"{path_times.mean():.2f}",
+#                 f"{path_times.std():.2f}",
+#                 f"{path_times.min():.2f}",
+#                 f"{path_times.max():.2f}"
+#             )
         
-        # Direct sum computation times
-        sum_times = query_data[query_data['metric'] == 'direct_sum_time']['value']
-        if not sum_times.empty:
-            query_table.add_row(
-                "Direct Sum Computation (ms)",
-                f"{sum_times.mean():.2f}",
-                f"{sum_times.std():.2f}",
-                f"{sum_times.min():.2f}",
-                f"{sum_times.max():.2f}"
-            )
+#         # Direct sum computation times
+#         sum_times = query_data[query_data['metric'] == 'direct_sum_time']['value']
+#         if not sum_times.empty:
+#             query_table.add_row(
+#                 "Direct Sum Computation (ms)",
+#                 f"{sum_times.mean():.2f}",
+#                 f"{sum_times.std():.2f}",
+#                 f"{sum_times.min():.2f}",
+#                 f"{sum_times.max():.2f}"
+#             )
         
-        console.print(query_table)
+#         console.print(query_table)
         
-        # Total query time
-        total_query = query_data[query_data['metric'] == 'total_query_time']['value']
-        if not total_query.empty:
-            console.print(f"[bold yellow]Total Query Time:[/bold yellow] [green]{total_query.sum():.2f}ms[/green] "
-                         f"[dim](avg per query: {total_query.mean():.2f}ms)[/dim]")
+#         # Total query time
+#         total_query = query_data[query_data['metric'] == 'total_query_time']['value']
+#         if not total_query.empty:
+#             console.print(f"[bold yellow]Total Query Time:[/bold yellow] [green]{total_query.sum():.2f}ms[/green] "
+#                          f"[dim](avg per query: {total_query.mean():.2f}ms)[/dim]")
     
-    # Network/computation stats
-    for phase in ['update_summary', 'query_summary']:
-        phase_data = df[df['phase'] == phase]
-        if not phase_data.empty:
-            console.print(f"\n[bold magenta]--- {phase.replace('_', ' ').title()} ---[/bold magenta]")
+#     # Network/computation stats
+#     for phase in ['update_summary', 'query_summary']:
+#         phase_data = df[df['phase'] == phase]
+#         if not phase_data.empty:
+#             console.print(f"\n[bold magenta]--- {phase.replace('_', ' ').title()} ---[/bold magenta]")
             
-            stats_table = Table(box=box.SIMPLE)
-            stats_table.add_column("Metric", style="cyan")
-            stats_table.add_column("Value", style="green")
+#             stats_table = Table(box=box.SIMPLE)
+#             stats_table.add_column("Metric", style="cyan")
+#             stats_table.add_column("Value", style="green")
             
-            for metric in ['messages_sent', 'message_bytes', 'aes_operations', 'memory_usage']:
-                metric_data = phase_data[phase_data['metric'] == metric]
-                if not metric_data.empty:
-                    value = metric_data['value'].iloc[0]
-                    unit = metric_data['unit'].iloc[0]
-                    stats_table.add_row(
-                        metric.replace('_', ' ').title(),
-                        f"{value:,.0f} {unit}"
-                    )
+#             for metric in ['messages_sent', 'message_bytes', 'aes_operations', 'memory_usage']:
+#                 metric_data = phase_data[phase_data['metric'] == metric]
+#                 if not metric_data.empty:
+#                     value = metric_data['value'].iloc[0]
+#                     unit = metric_data['unit'].iloc[0]
+#                     stats_table.add_row(
+#                         metric.replace('_', ' ').title(),
+#                         f"{value:,.0f} {unit}"
+#                     )
             
-            if stats_table.rows:
-                console.print(stats_table)
+#             if stats_table.rows:
+#                 console.print(stats_table)
 
 def compare_experiments(csv_files):
     """Compare multiple experiments"""

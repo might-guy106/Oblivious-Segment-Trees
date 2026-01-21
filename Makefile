@@ -10,7 +10,7 @@ LDLIBS=-lbsd -lboost_context -lboost_chrono -lboost_thread -lpthread
 BIN=prac
 SRCS=prac.cpp mpcio.cpp preproc.cpp online.cpp mpcops.cpp rdpf.cpp \
 	cdpf.cpp duoram.cpp cell.cpp bst.cpp avl.cpp heap.cpp \
-	heapsampler.cpp segmentTree9.cpp segmentTree10.cpp
+	heapsampler.cpp segmentTree9.cpp
 OBJS=$(SRCS:.cpp=.o)
 ASMS=$(SRCS:.cpp=.s)
 
@@ -32,7 +32,7 @@ depend:
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.
 
-prac.o: mpcio.hpp types.hpp bitutils.hpp corotypes.hpp mpcio.tcc preproc.hpp
+prac.o: mpcio.hpp types.hpp bitutils.hpp corotypes.hpp mpcio.tcc preproc.hpp preprocessinglogger.hpp
 prac.o: options.hpp online.hpp
 mpcio.o: mpcio.hpp types.hpp bitutils.hpp corotypes.hpp mpcio.tcc rdpf.hpp
 mpcio.o: coroutine.hpp dpf.hpp prg.hpp aes.hpp rdpf.tcc mpcops.hpp mpcops.tcc

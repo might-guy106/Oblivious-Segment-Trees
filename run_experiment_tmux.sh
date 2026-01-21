@@ -46,9 +46,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Default parameters
-DEPTH=${1:-20}
-UPDATES=${2:-10}
-QUERIES=${3:-10}
+DEPTH=${1:-8}
+UPDATES=${2:-0}
+QUERIES=${3:-5}
 VARIANT=${4:-segmenttree9}
 THREADS=${5:-8}
 
@@ -109,7 +109,7 @@ run_phase1_only() {
     # Phase 1 only: extract resources and detach
     tmux send-keys -t "$SESSION_NAME:0.0" "echo 'Phase 1 only mode: Extracting resource requirements...'" C-m
     tmux send-keys -t "$SESSION_NAME:0.0" "grep 'Precomputed values used:' /tmp/phase1_output_${SESSION_NAME}.log | tail -1 | sed 's/.*T0 //' > $RESOURCES_FILE" C-m
-    tmux send-keys -t "$SESSION_NAME:0.0" "echo 'Phase 1 only mode complete. Detaching in 2 seconds...'; sleep 2; tmux detach-client -s \"$SESSION_NAME\"" C-m
+    tmux send-keys -t "$SESSION_NAME:0.0" "echo 'Phase 1 only mode complete. Detaching in 5 seconds...'; sleep 5; tmux detach-client -s \"$SESSION_NAME\"" C-m
 }
 
 
@@ -156,6 +156,10 @@ run_three_phases() {
     # Phase 3: Online mode (no -o flag, using precomputed resources)
     tmux send-keys -t "$SESSION_NAME:0.0" "echo '=== PHASE 3: Online mode with precomputed resources ==='" C-m
 
+    # Rename preprocessing log to include variant from onlineonly log (run before Phase 3 actually starts logic)
+    tmux send-keys -t "$SESSION_NAME:0.0" "echo 'Renaming preprocessing log...'" C-m
+    tmux send-keys -t "$SESSION_NAME:0.0" "ONLINE=\$(/bin/ls -t logs/performance_onlineonly_*.csv | head -n1); PREPROC=\$(/bin/ls -t logs/preprocessing_*.csv | head -n1); VARIANT=\$(basename \$ONLINE | sed -E 's/performance_onlineonly_(.*)_[0-9]{8}_[0-9]{6}\.csv/\1/'); if [ -f \"\$PREPROC\" ]; then mv \"\$PREPROC\" logs/performance_preprocessing_\${VARIANT}_\${PREPROC##*preprocessing_}; fi" C-m
+
     tmux send-keys -t "$SESSION_NAME:0.0" "echo '=== PHASE 3: Player 0 (Logger) - Online mode ==='; sleep 1" C-m
     tmux send-keys -t "$SESSION_NAME:0.0" "./prac -t $THREADS 0 $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES" C-m
 
@@ -166,7 +170,7 @@ run_three_phases() {
     tmux send-keys -t "$SESSION_NAME:0.2" "./prac -t $THREADS 2 localhost localhost $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES" C-m
 
     # Cleanup and detach after Phase 3
-    tmux send-keys -t "$SESSION_NAME:0.0" "echo 'All 3 phases completed! Cleaning up...'; rm -f $RESOURCES_FILE /tmp/phase1_output_${SESSION_NAME}.log; rm -rf *t0; echo 'Detaching session in 2 seconds...'; sleep 2; tmux detach-client -s \"$SESSION_NAME\"" C-m
+    tmux send-keys -t "$SESSION_NAME:0.0" "echo 'All 3 phases completed! Cleaning up...'; rm -f $RESOURCES_FILE /tmp/phase1_output_${SESSION_NAME}.log; rm -rf *t0; echo 'Detaching session in 5 seconds...'; sleep 5; tmux detach-client -s \"$SESSION_NAME\"" C-m
 }
 
 # Execute phases (optionally Phase 1 only)

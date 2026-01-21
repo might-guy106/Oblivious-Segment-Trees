@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Get the IP addresses
-p0addr=$(docker inspect --format='{{ .NetworkSettings.IPAddress }}' ${PRAC_DOCKER_PREFIX}prac_p0)
-p1addr=$(docker inspect --format='{{ .NetworkSettings.IPAddress }}' ${PRAC_DOCKER_PREFIX}prac_p1)
+p0addr=$(docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${PRAC_DOCKER_PREFIX}prac_p0)
+p1addr=$(docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${PRAC_DOCKER_PREFIX}prac_p1)
 
 # Gather options and arguments
 preproc=0

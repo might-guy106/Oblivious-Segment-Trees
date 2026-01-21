@@ -1,20 +1,20 @@
-#include <functional>
-#include <chrono>
-#include "coroutine.hpp"
-#include "mpcops.hpp"
-#include "types.hpp"
-#include "duoram.hpp"
+#include "segmentTree9.hpp"
 #include "cell.hpp"
+#include "coroutine.hpp"
+#include "duoram.hpp"
+#include "logger.hpp"
+#include "mpcops.hpp"
 #include "rdpf.hpp"
 #include "shapes.hpp"
-#include "segmentTree9.hpp"
-#include "logger.hpp"
+#include "types.hpp"
+#include <chrono>
+#include <functional>
 
 // uncomment to enable intermediate reconstructions and logging
 // #define SEGTREE_VERBOSE
 
 /*
-The segment tree data structure in SegmentTree8 uses a ARRAY layout 
+The segment tree data structure in SegmentTree8 uses a ARRAY layout
 
 ARRAY STRUCTURE:
 - Each level k has 2^k nodes
@@ -25,7 +25,7 @@ LEVEL-WISE LAYOUT EXAMPLE:
 For depth d=3, array [100, 200, 300, 400] (4 elements):
 
 Level 0: [600]           (Root level: root_sum)
-Level 1: [300][700]      (Level 1: left_sum + right_sum) 
+Level 1: [300][700]      (Level 1: left_sum + right_sum)
 Level 2: [100][200][300][400]  (Leaf level: leaf_values)
 
 Array storage:
@@ -35,31 +35,36 @@ Level:   0   1   1   2   2   2  2
 
 MATHEMATICAL FORMULAS:
 - Level k start index: 2^k
-- Level k length: 2^k  
+- Level k length: 2^k
 - Total array size: 2^d
 */
-    
+
 /*
 RANGE SUM QUERY OPERATION (Level-wise Processing)
 
-The range sum query efficiently computes the sum of elements in a given range [left, right]
-using the level-wise segment tree structure. The algorithm processes entire levels at once
-using level-specific Flat objects for optimal MPC performance.
+The range sum query efficiently computes the sum of elements in a given range
+[left, right] using the level-wise segment tree structure. The algorithm
+processes entire levels at once using level-specific Flat objects for optimal
+MPC performance.
 
-parent of a index is at index/2 we can simply do index >> 1 to the xor shares of the index store this path if needed
-if index are level wise, still the index >> 1 to their xor shares gives shares of parent index in its level
+parent of a index is at index/2 we can simply do index >> 1 to the xor shares of
+the index store this path if needed if index are level wise, still the index >>
+1 to their xor shares gives shares of parent index in its level
 
 Algorithm Overview:
-1. Start with leaf-level indices (left, right) 
+1. Start with leaf-level indices (left, right)
 2. PreCompute the path indices for all levels going up the tree
 3. For each level from leaves to root:
    - Create level-specific Flat objects for Tree ORAM and Sibling ORAM
    - Compute Additive Shares of XOR shares of left and right indices
    - use Additive share to compare them and compute isNotDone flag
-   - Get the last bit of xor shares of left and right indeces which functions as boolean shares of isOdd
-   - get leftSiblingIndex and rightSiblingIndex from SiblingArray and then using these get leftSiblingValue and rightSiblingValue from segTree
+   - Get the last bit of xor shares of left and right indeces which functions as
+boolean shares of isOdd
+   - get leftSiblingIndex and rightSiblingIndex from SiblingArray and then using
+these get leftSiblingValue and rightSiblingValue from segTree
    - add leftSiblingValue to sum if left is a left child => !isOdd && isNotDone
-   - add rightSiblingValue to sum if right is a right child => isOdd && isNotDone
+   - add rightSiblingValue to sum if right is a right child => isOdd &&
+isNotDone
 */
 
 /*
@@ -71,22 +76,33 @@ up through all levels using level-specific addressing and parent relationships.
 Algorithm Overview:
 1. Calculate difference between new and current values
 2. For each level from leaves to root:
-   - Create level-specific Flat objects 
+   - Create level-specific Flat objects
    - Update current node with difference
    - Move to parent using level-relative parent index
 */
 
+struct LevelStats {
+    double start_ms;
+    double indices_ms;
+    double is_not_done_ms;
+    double siblings_start_ms;
+    double left_oram_access_ms;
+    double right_oram_access_ms;
+    double siblings_ms;
+    double end_ms;
+};
+
 size_t arrayIndexToLevelIndex(size_t idx) {
-     // Compute level as the floor of log2(idx)
-     size_t level = static_cast<size_t>(std::log2(idx));
-     // For a complete binary tree with root at index 1,
-     // leftmost index in this level is 2^level.
-     size_t pos = idx - (1ULL << level);
+    // Compute level as the floor of log2(idx)
+    size_t level = static_cast<size_t>(std::log2(idx));
+    // For a complete binary tree with root at index 1,
+    // leftmost index in this level is 2^level.
+    size_t pos = idx - (1ULL << level);
 
-     return pos;
- }
+    return pos;
+}
 
-void SegmentTree9::init(MPCTIO &tio, yield_t & yield) {
+void SegmentTree9::init(MPCTIO &tio, yield_t &yield) {
 
     // Create a flat reference to the main segment tree ORAM
     auto SegTreeArray = TreeOram.flat(tio, yield);
@@ -103,11 +119,11 @@ void SegmentTree9::init(MPCTIO &tio, yield_t & yield) {
 
     // Build internal nodes bottom-up by computing range sums
     for (int i = num_leaves - 1; i >= 1; --i) {
-        segTree[i] = segTree[2*i] + segTree[2*i + 1];
+        segTree[i] = segTree[2 * i] + segTree[2 * i + 1];
     }
 
     // Initialize the ORAM segment tree with computed values
-    SegTreeArray.init([this, &segTree] (size_t i) -> size_t {
+    SegTreeArray.init([this, &segTree](size_t i) -> size_t {
         if (i >= 1 && i < num_items) {
             return segTree[i];
         } else {
@@ -117,9 +133,10 @@ void SegmentTree9::init(MPCTIO &tio, yield_t & yield) {
 
     // Initialize sibling ORAM
     auto SiblingArray = SiblingOram.flat(tio, yield);
-    SiblingArray.init([this] (size_t i) -> size_t {
+    SiblingArray.init([this](size_t i) -> size_t {
         if (i >= 1 && i < num_items) {
-            return arrayIndexToLevelIndex((i % 2 == 0) ? (i + 1) : (i - 1)); // even index store right sibling, odd index store left sibling (level index)
+            return arrayIndexToLevelIndex((i % 2 == 0) ? (i + 1) : (i - 1)); // even index store right sibling, odd
+                                                                             // index store left sibling (level index)
         } else {
             return size_t(0);
         }
@@ -127,17 +144,18 @@ void SegmentTree9::init(MPCTIO &tio, yield_t & yield) {
 }
 
 // helper function to reconstruct and print SegTreeArray
-void SegmentTree9::printSegmentTree(MPCTIO &tio, yield_t & yield) {
+void SegmentTree9::printSegmentTree(MPCTIO &tio, yield_t &yield) {
     auto SegTreeArray = TreeOram.flat(tio, yield);
     auto SegTreeRecons = SegTreeArray.reconstruct();
-    for(size_t i=1; i<num_items; i++) {
+    for (size_t i = 1; i < num_items; i++) {
         std::cout << "SegTreeArray[" << i << "] = " << SegTreeRecons[i].share() << std::endl;
     }
 }
 
-// Main function to compute range sum directly (optimized - no intermediate bitVec)
-RegAS SegmentTree9::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegXS leftLevelIndex, RegXS rightLevelIndex,
-                                    PerformanceLogger* logger, size_t operation_id) {
+// Main function to compute range sum directly (optimized - no intermediate
+// bitVec)
+RegAS SegmentTree9::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS leftLevelIndex,
+                                    RegXS rightLevelIndex, PerformanceLogger *logger, size_t operation_id) {
 
     auto SegTreeArray = TreeOram.flat(tio, yield);
     auto SiblingArray = SiblingOram.flat(tio, yield);
@@ -149,8 +167,8 @@ RegAS SegmentTree9::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, 
     std::vector<RegXS> rightPathIndex(depth);
 
     // Compute parent indices for all levels going up the tree
-    for(uint32_t i = 1; i <= depth; i++) {
-        size_t level = depth - i;  // Current level (leaf to root)
+    for (uint32_t i = 1; i <= depth; i++) {
+        size_t level = depth - i; // Current level (leaf to root)
 
         // Read parent indices from the nodes
         leftPathIndex[level] = leftLevelIndex;
@@ -166,16 +184,23 @@ RegAS SegmentTree9::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, 
 
     // Phase 2: Compute sum directly while identifying nodes to include
     std::vector<RegAS> levelSums(depth);
-    for(size_t level = 0; level < depth; level++) {
+    for (size_t level = 0; level < depth; level++) {
         levelSums[level].set(0);
     }
 
+    std::vector<LevelStats> stats(depth);
+    auto parallel_start_time = std::chrono::high_resolution_clock::now();
+
     std::vector<coro_t> sum_coroutines;
-    for(uint32_t i = 1; i <= depth; i++) {
+    for (uint32_t i = 1; i <= depth; i++) {
         size_t level = depth - i;
 
-        sum_coroutines.emplace_back([&tio, level, i, this, &leftPathIndex, &rightPathIndex,
-                                    &SegTreeArray, &SiblingArray, &levelSums](yield_t &sub_yield) {
+        sum_coroutines.emplace_back([&tio, level, i, this, &leftPathIndex, &rightPathIndex, &SegTreeArray,
+                                     &SiblingArray, &levelSums, &stats, parallel_start_time](yield_t &sub_yield) {
+            auto level_start = std::chrono::high_resolution_clock::now();
+            stats[level].start_ms =
+                std::chrono::duration<double, std::milli>(level_start - parallel_start_time).count();
+
             size_t levelStart = 1ULL << level;
             size_t levelLength = (1ULL << level) + 1;
 
@@ -189,87 +214,125 @@ RegAS SegmentTree9::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, 
             typename Duoram<RegAS>::Flat levelTreeArray(SegTreeArray, tio, sub_yield, levelStart, levelLength);
             typename Duoram<RegAS>::Flat levelSiblingArray(SiblingArray, tio, sub_yield, levelStart, levelLength);
 
-            // level index which are already stored or can be computed using index >>= level
+            // level index which are already stored or can be computed using index >>=
+            // level
             RegXS leftIndex = leftPathIndex[level];
             RegXS rightIndex = rightPathIndex[level];
 
             RegAS leftIndexAS;
             RegAS rightIndexAS;
-            run_coroutines(sub_yield,
-            [&tio, leftIndex, &leftIndexAS](yield_t &yield){
-                mpc_xs_to_as(tio, yield, leftIndexAS, leftIndex);
-            },
-            [&tio, rightIndex, &rightIndexAS](yield_t &yield){
-                mpc_xs_to_as(tio, yield, rightIndexAS, rightIndex);
-            });
+            run_coroutines(
+                sub_yield,
+                [&tio, leftIndex, &leftIndexAS](yield_t &yield) { mpc_xs_to_as(tio, yield, leftIndexAS, leftIndex); },
+                [&tio, rightIndex, &rightIndexAS](yield_t &yield) {
+                    mpc_xs_to_as(tio, yield, rightIndexAS, rightIndex);
+                });
 
-            // if left and right are adjacent or same then the marking of nodes is already completed so we set isDone here
+            stats[level].indices_ms = std::chrono::duration<double, std::milli>(
+                                          std::chrono::high_resolution_clock::now() - parallel_start_time)
+                                          .count();
+
+            // if left and right are adjacent or same then the marking of nodes is
+            // already completed so we set isDone here
             RegBS isNotDone;
             CDPF cdpf1 = tio.cdpf(sub_yield);
             RegAS diff1 = rightIndexAS - (leftIndexAS + one); // diff1 = right - (left + 1)
-            auto[lt_c1, eq_c1, gt_c1] = cdpf1.compare(tio, sub_yield, diff1, tio.aes_ops());
+            auto [lt_c1, eq_c1, gt_c1] = cdpf1.compare(tio, sub_yield, diff1, tio.aes_ops());
+
+            stats[level].is_not_done_ms = std::chrono::duration<double, std::milli>(
+                                              std::chrono::high_resolution_clock::now() - parallel_start_time)
+                                              .count();
 
             isNotDone = gt_c1; // isNotDone = (right > left + 1)
 
-            // include left and right independently based on isValid and isDifferent and if left is left child and right is right child
-            // if xor of last bit is 1 then its odd -> right child else left child
-            // if leftLastBit is 1 then left is right child else left child
+            stats[level].siblings_start_ms = std::chrono::duration<double, std::milli>(
+                                                 std::chrono::high_resolution_clock::now() - parallel_start_time)
+                                                 .count();
+
+            // include left and right independently based on isValid and isDifferent
+            // and if left is left child and right is right child if xor of last bit
+            // is 1 then its odd -> right child else left child if leftLastBit is 1
+            // then left is right child else left child
             RegBS leftLastBit = leftIndex.bitat(0);
             RegBS rightLastBit = rightIndex.bitat(0);
 
             RegAS leftSum, rightSum;
-            run_coroutines(sub_yield,
-            [&tio, &levelTreeArray, &levelSiblingArray, isNotDone, leftIndex, &leftSum, leftLastBit](yield_t &yield) {
-                auto levelSiblingArrayCoro = levelSiblingArray.context(yield);
-                auto levelTreeArrayCoro    = levelTreeArray.context(yield);
+            run_coroutines(
+                sub_yield,
+                [&tio, &levelTreeArray, &levelSiblingArray, isNotDone, leftIndex, &leftSum, leftLastBit, &stats, level,
+                 parallel_start_time](yield_t &yield) {
+                    auto levelSiblingArrayCoro = levelSiblingArray.context(yield);
+                    auto levelTreeArrayCoro = levelTreeArray.context(yield);
 
-                RegAS leftSibIndex = levelSiblingArrayCoro[leftIndex];
-                RegAS leftSibValue = levelTreeArrayCoro[leftSibIndex];
+                    RegAS leftSibIndex = levelSiblingArrayCoro[leftIndex];
+                    RegAS leftSibValue = levelTreeArrayCoro[leftSibIndex];
 
-                RegBS isLeftIncluded;
-                mpc_and(tio, yield, isLeftIncluded, isNotDone, leftLastBit ^ tio.player());
-                mpc_flagmult(tio, yield, leftSum, isLeftIncluded, leftSibValue);
-            },
-            [&tio, &levelTreeArray, &levelSiblingArray, isNotDone, rightIndex, &rightSum, rightLastBit](yield_t &yield) {
-                auto levelSiblingArrayCoro = levelSiblingArray.context(yield);
-                auto levelTreeArrayCoro    = levelTreeArray.context(yield);
+                    stats[level].left_oram_access_ms =
+                        std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() -
+                                                                  parallel_start_time)
+                            .count();
 
-                RegAS rightSibIndex = levelSiblingArrayCoro[rightIndex];
-                RegAS rightSibValue = levelTreeArrayCoro[rightSibIndex];
+                    RegBS isLeftIncluded;
+                    mpc_and(tio, yield, isLeftIncluded, isNotDone, leftLastBit ^ tio.player());
+                    mpc_flagmult(tio, yield, leftSum, isLeftIncluded, leftSibValue);
+                },
+                [&tio, &levelTreeArray, &levelSiblingArray, isNotDone, rightIndex, &rightSum, rightLastBit, &stats,
+                 level, parallel_start_time](yield_t &yield) {
+                    auto levelSiblingArrayCoro = levelSiblingArray.context(yield);
+                    auto levelTreeArrayCoro = levelTreeArray.context(yield);
 
-                RegBS isRightIncluded;
-                mpc_and(tio, yield, isRightIncluded, isNotDone, rightLastBit);
-                mpc_flagmult(tio, yield, rightSum, isRightIncluded, rightSibValue);
-            });
+                    RegAS rightSibIndex = levelSiblingArrayCoro[rightIndex];
+                    RegAS rightSibValue = levelTreeArrayCoro[rightSibIndex];
+
+                    stats[level].right_oram_access_ms =
+                        std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() -
+                                                                  parallel_start_time)
+                            .count();
+
+                    RegBS isRightIncluded;
+                    mpc_and(tio, yield, isRightIncluded, isNotDone, rightLastBit);
+                    mpc_flagmult(tio, yield, rightSum, isRightIncluded, rightSibValue);
+                });
+
+            stats[level].siblings_ms = std::chrono::duration<double, std::milli>(
+                                           std::chrono::high_resolution_clock::now() - parallel_start_time)
+                                           .count();
 
             levelSums[level] += leftSum + rightSum;
 
-            // if its the leaf level then we also have to include the leftIndex and rightIndex themselves after checking validation and duplication
-            if(i == 1)
-            {
+            // if its the leaf level then we also have to include the leftIndex and
+            // rightIndex themselves after checking validation and duplication
+            if (i == 1) {
                 CDPF cdpf2 = tio.cdpf(sub_yield);
                 RegAS diff2 = rightIndexAS - leftIndexAS; // diff1 = right - left
-                auto[lt_c2, eq_c2, gt_c2] = cdpf2.compare(tio, sub_yield, diff2, tio.aes_ops());
+                auto [lt_c2, eq_c2, gt_c2] = cdpf2.compare(tio, sub_yield, diff2, tio.aes_ops());
 
                 RegAS leftLeafContribution;
                 RegAS rightLeafContribution;
-                run_coroutines(sub_yield,
-                [&tio, &lt_c2, &eq_c2, &gt_c2, &zero, &one, &leftIndex, &levelTreeArray, &leftLeafContribution](yield_t &yield) {
-                    // if right >= left add left
-                    // that is equivalent to !(left > right) => lt_c2 ^ tio.player()
-                    auto levelTreeArrayCoro    = levelTreeArray.context(yield);
-                    RegAS leftLeafValue = levelTreeArrayCoro[leftIndex];
-                    mpc_select(tio, yield, leftLeafContribution, lt_c2 ^ tio.player(), zero, leftLeafValue);
-                },
-                [&tio, &lt_c2, &eq_c2, &gt_c2, &zero, &one, &rightIndex, &levelTreeArray, &rightLeafContribution](yield_t &yield) {
-                    // Only add right leaf if it's different from left (to avoid double counting) that is if right > left
-                    auto levelTreeArrayCoro = levelTreeArray.context(yield);
-                    RegAS rightLeafValue = levelTreeArrayCoro[rightIndex];
-                    mpc_select(tio, yield, rightLeafContribution, gt_c2, zero, rightLeafValue);
-                });
+                run_coroutines(
+                    sub_yield,
+                    [&tio, &lt_c2, &eq_c2, &gt_c2, &zero, &one, &leftIndex, &levelTreeArray,
+                     &leftLeafContribution](yield_t &yield) {
+                        // if right >= left add left
+                        // that is equivalent to !(left > right) => lt_c2 ^ tio.player()
+                        auto levelTreeArrayCoro = levelTreeArray.context(yield);
+                        RegAS leftLeafValue = levelTreeArrayCoro[leftIndex];
+                        mpc_select(tio, yield, leftLeafContribution, lt_c2 ^ tio.player(), zero, leftLeafValue);
+                    },
+                    [&tio, &lt_c2, &eq_c2, &gt_c2, &zero, &one, &rightIndex, &levelTreeArray,
+                     &rightLeafContribution](yield_t &yield) {
+                        // Only add right leaf if it's different from left (to avoid
+                        // double counting) that is if right > left
+                        auto levelTreeArrayCoro = levelTreeArray.context(yield);
+                        RegAS rightLeafValue = levelTreeArrayCoro[rightIndex];
+                        mpc_select(tio, yield, rightLeafContribution, gt_c2, zero, rightLeafValue);
+                    });
 
                 levelSums[level] += leftLeafContribution + rightLeafContribution;
             }
+
+            auto level_end = std::chrono::high_resolution_clock::now();
+            stats[level].end_ms = std::chrono::duration<double, std::milli>(level_end - parallel_start_time).count();
         });
     }
 
@@ -278,14 +341,54 @@ RegAS SegmentTree9::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, 
     // Combine all level sums
     RegAS totalSum;
     totalSum.set(0);
-    for(size_t level = 0; level < depth; level++) {
+    for (size_t level = 0; level < depth; level++) {
         totalSum += levelSums[level];
     }
 
     auto step2_end_time = std::chrono::high_resolution_clock::now();
-    auto step2_duration = std::chrono::duration_cast<std::chrono::milliseconds>(step2_end_time - step1_end_time).count();
+    auto step2_duration =
+        std::chrono::duration_cast<std::chrono::milliseconds>(step2_end_time - step1_end_time).count();
 
     std::cout << "Step 2 (Direct Sum Computation) Time: " << step2_duration << " ms" << std::endl;
+
+    // Log detailed level-wise stats
+    if (logger) {
+        std::ostringstream oss;
+        oss << "\nLevel-wise Timing in ms (relative to parallel start) "
+               "[T=Timestamp, "
+               "D=Duration]:\n";
+        oss << "Level | Start(T)   | Indices(D) | IsDone(D)  | SibStart(T) | LeftORAM(T) | RightORAM(T) | Siblings(D) "
+               "| "
+               "End(T)     | Total(D)\n";
+        oss << "------+------------+------------+------------+-------------+-------------+--------------+-------------+"
+               "-------"
+               "-----+----------\n";
+        for (size_t level = 0; level < depth; level++) {
+            if (stats[level].end_ms > 0) {
+                double t_start = stats[level].start_ms;
+                double t_idx = stats[level].indices_ms;
+                double t_done = stats[level].is_not_done_ms;
+                double t_sib_start = stats[level].siblings_start_ms;
+                double t_left_oram = stats[level].left_oram_access_ms;
+                double t_right_oram = stats[level].right_oram_access_ms;
+                double t_sib = stats[level].siblings_ms;
+                double t_end = stats[level].end_ms;
+
+                oss << std::setw(5) << level << " | " << std::setw(10) << std::fixed << std::setprecision(3) << t_start
+                    << " | " << std::setw(10) << (t_idx - t_start) << " | " << std::setw(10) << (t_done - t_idx)
+                    << " | " << std::setw(11) << t_sib_start << " | " << std::setw(11) << t_left_oram << " | "
+                    << std::setw(12) << t_right_oram << " | " << std::setw(11) << (t_sib - t_done) << " | "
+                    << std::setw(10) << t_end << " | " << std::setw(8) << (t_end - t_start) << "\n";
+
+                // oss << std::setw(5) << level << " | " << std::setw(10) << std::fixed << std::setprecision(3) <<
+                // t_start
+                //     << " | " << std::setw(10) << t_idx << " | " << std::setw(10) << t_done << " | " << std::setw(11)
+                //     << t_sib << " | " << std::setw(10) << t_end << " | " << std::setw(8) << (t_end - t_start) <<
+                //     "\n";
+            }
+        }
+        logger->log_output(oss.str());
+    }
 
     // Log metrics if logger is provided
     if (logger) {
@@ -297,19 +400,19 @@ RegAS SegmentTree9::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, 
 }
 
 // Main RangeSum function
-void SegmentTree9::RangeSum(MPCTIO &tio,  MPCIO &mpcio, yield_t & yield, RegXS left, RegXS right,
-                            PerformanceLogger* logger, size_t operation_id) {
+void SegmentTree9::RangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS left, RegXS right,
+                            PerformanceLogger *logger, size_t operation_id) {
     RegAS sum = computeRangeSum(tio, mpcio, yield, left, right, logger, operation_id);
 
-    #ifdef SEGTREE_VERBOSE
+#ifdef SEGTREE_VERBOSE
     value_t answer = mpc_reconstruct(tio, yield, sum);
     std::cout << "Sum = " << answer << std::endl;
-    #endif
+#endif
 }
 
 // Main Update function
-void SegmentTree9::Update(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegXS index, RegAS value,
-                          PerformanceLogger* logger, size_t operation_id) {
+void SegmentTree9::Update(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS index, RegAS value,
+                          PerformanceLogger *logger, size_t operation_id) {
 
     auto SegTreeArray = TreeOram.flat(tio, yield);
 
@@ -322,8 +425,8 @@ void SegmentTree9::Update(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegXS inde
     RegAS currVal = leafLevelArray[index];
     RegAS diff = value - currVal;
 
-    // Debugging and intermediate reconstructions
-    #ifdef SEGTREE_VERBOSE
+// Debugging and intermediate reconstructions
+#ifdef SEGTREE_VERBOSE
     auto recons_index = mpc_reconstruct(tio, yield, index);
     auto recons_currVal = mpc_reconstruct(tio, yield, currVal);
     auto recons_newvalue = mpc_reconstruct(tio, yield, value);
@@ -333,15 +436,16 @@ void SegmentTree9::Update(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegXS inde
     std::cout << "Current Value at index = " << recons_currVal << std::endl;
     std::cout << "New Value to be updated = " << recons_newvalue << std::endl;
     std::cout << "Diff = " << recons_diff << std::endl;
-    #endif
+#endif
 
     auto update_start = std::chrono::high_resolution_clock::now();
-    // Phase 1: Pre-compute the path indices for all levels (similar to getBitVector)
+    // Phase 1: Pre-compute the path indices for all levels (similar to
+    // getBitVector)
     std::vector<RegXS> updatePathIndex(depth);
 
     // Compute parent indices for all levels going up the tree
-    for(size_t i = 1; i <= depth; i++) {
-        size_t level = depth - i;  // Current level (leaf to root)
+    for (size_t i = 1; i <= depth; i++) {
+        size_t level = depth - i; // Current level (leaf to root)
 
         updatePathIndex[level] = index;
 
@@ -354,7 +458,7 @@ void SegmentTree9::Update(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegXS inde
 
     // Phase 2: Parallelize the updates across all levels
     std::vector<coro_t> update_coroutines;
-    for(size_t i = 1; i <= depth; i++) {
+    for (size_t i = 1; i <= depth; i++) {
         size_t level = depth - i;
 
         update_coroutines.emplace_back([&tio, level, this, &diff, &updatePathIndex, &SegTreeArray](yield_t &sub_yield) {
@@ -366,11 +470,12 @@ void SegmentTree9::Update(MPCTIO &tio, MPCIO &mpcio, yield_t & yield, RegXS inde
             // Update the value field at this level's index
             levelTreeArray[updatePathIndex[level]] += diff;
 
-            #ifdef SEGTREE_VERBOSE
+#ifdef SEGTREE_VERBOSE
             auto recons_Index = mpc_reconstruct(tio, sub_yield, updatePathIndex[level]);
             auto recons_updated = mpc_reconstruct(tio, sub_yield, levelTreeArray[updatePathIndex[level]]);
-            std::cout << "Updated Index = " << (levelStart + recons_Index) << " with value = " << recons_updated << std::endl;
-            #endif
+            std::cout << "Updated Index = " << (levelStart + recons_Index) << " with value = " << recons_updated
+                      << std::endl;
+#endif
         });
     }
 
@@ -412,7 +517,7 @@ void SegTree9(MPCIO &mpcio, const PRACOptions &opts, char **args) {
     }
 
     // Calculate new array size: 2^d
-    address_t len = (1<<depth);
+    address_t len = (1 << depth);
 
     MPCTIO tio(mpcio, 0, opts.num_cpu_threads);
 
@@ -420,15 +525,14 @@ void SegTree9(MPCIO &mpcio, const PRACOptions &opts, char **args) {
     auto now = std::time(nullptr);
     auto tm = *std::localtime(&now);
     std::ostringstream exp_id_stream;
-    exp_id_stream << "st9_d" << (int)depth << "_u" << n_updates << "_q" << n_queries
-                  << "_" << std::put_time(&tm, "%Y%m%d_%H%M%S");
+    exp_id_stream << "st9_d" << (int)depth << "_u" << n_updates << "_q" << n_queries << "_"
+                  << std::put_time(&tm, "%Y%m%d_%H%M%S");
     std::string experiment_id = exp_id_stream.str();
 
     // Initialize logger (only player 0 will actually create log files)
     PerformanceLogger logger(experiment_id, depth, n_updates, n_queries, tio.player(), tio.getMode());
 
-    run_coroutines(tio, [&tio, &mpcio, len, depth, n_updates, n_queries, &logger] (yield_t &yield) {
-
+    run_coroutines(tio, [&tio, &mpcio, len, depth, n_updates, n_queries, &logger](yield_t &yield) {
         // Time initialization
         auto init_start = std::chrono::high_resolution_clock::now();
 
@@ -451,11 +555,11 @@ void SegTree9(MPCIO &mpcio, const PRACOptions &opts, char **args) {
         mpcio.reset_stats();
         tio.reset_lamport();
 
-        // Print initial segment tree
-        #ifdef SEGTREE_VERBOSE
+// Print initial segment tree
+#ifdef SEGTREE_VERBOSE
         logger.log_section("Initial Segment Tree");
         segTree.printSegmentTree(tio, yield);
-        #endif
+#endif
 
         // Time updates
         auto update_start = std::chrono::high_resolution_clock::now();
@@ -477,8 +581,8 @@ void SegTree9(MPCIO &mpcio, const PRACOptions &opts, char **args) {
             segTree.Update(tio, mpcio, yield, index, value, &logger, u + 1);
 
             auto single_update_end = std::chrono::high_resolution_clock::now();
-            auto single_update_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-                single_update_end - single_update_start).count();
+            auto single_update_duration =
+                std::chrono::duration_cast<std::chrono::milliseconds>(single_update_end - single_update_start).count();
 
             logger.log_metric("update", u + 1, "total_update_time", single_update_duration);
             logger.log_output("Update " + std::to_string(u + 1) + " ends\n");
@@ -499,11 +603,11 @@ void SegTree9(MPCIO &mpcio, const PRACOptions &opts, char **args) {
         mpcio.reset_stats();
         tio.reset_lamport();
 
-        // Print updated segment tree
-        #ifdef SEGTREE_VERBOSE
+// Print updated segment tree
+#ifdef SEGTREE_VERBOSE
         logger.log_section("Updated Segment Tree");
         segTree.printSegmentTree(tio, yield);
-        #endif
+#endif
 
         // Time range queries
         auto query_start = std::chrono::high_resolution_clock::now();
@@ -523,19 +627,19 @@ void SegTree9(MPCIO &mpcio, const PRACOptions &opts, char **args) {
             left_index.set(tio.player() == 0 ? left_val : 0);
             right_index.set(tio.player() == 0 ? right_val : 0);
 
-            #ifdef SEGTREE_VERBOSE
+#ifdef SEGTREE_VERBOSE
             auto recons_left = mpc_reconstruct(tio, yield, left_index);
             auto recons_right = mpc_reconstruct(tio, yield, right_index);
             oss.str("");
             oss << "Range Sum Query [" << recons_left << ", " << recons_right << "]\n";
             logger.log_output(oss.str());
-            #endif
+#endif
 
             segTree.RangeSum(tio, mpcio, yield, left_index, right_index, &logger, q + 1);
 
             auto single_query_end = std::chrono::high_resolution_clock::now();
-            auto single_query_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-                single_query_end - single_query_start).count();
+            auto single_query_duration =
+                std::chrono::duration_cast<std::chrono::milliseconds>(single_query_end - single_query_start).count();
 
             logger.log_metric("query", q + 1, "total_query_time", single_query_duration);
             logger.log_output("Range Sum Query " + std::to_string(q + 1) + " ends\n");

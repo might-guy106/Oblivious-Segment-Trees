@@ -10,7 +10,7 @@
 #include "mpcops.hpp"
 #include "online.hpp"
 #include "rdpf.hpp"
-#include "segmentTree10.hpp"
+// #include "segmentTree10.hpp"
 #include "segmentTree9.hpp"
 #include "shapes.hpp"
 
@@ -1667,10 +1667,12 @@ void online_main(MPCIO &mpcio, const PRACOptions &opts, char **args) {
   } else if (!strcmp(*args, "segmenttree9")) {
     ++args;
     SegTree9(mpcio, opts, args);
-  } else if (!strcmp(*args, "segmenttree10")) {
-    ++args;
-    SegTree10(mpcio, opts, args);
-  } else {
+  }
+  // else if (!strcmp(*args, "segmenttree10")) {
+  //   ++args;
+  //   SegTree10(mpcio, opts, args);
+  // }
+  else {
     std::cerr << "Unknown mode " << *args << "\n";
   }
 }

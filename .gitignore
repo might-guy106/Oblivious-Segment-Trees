@@ -13,6 +13,7 @@ logs/
 *.tmp
 *~
 .DS_Store
+.clang-format
 
 # prac executable
 prac

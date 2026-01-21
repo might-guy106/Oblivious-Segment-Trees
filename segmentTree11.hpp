@@ -8,9 +8,10 @@
 // Forward declaration
 class PerformanceLogger;
 
-class SegmentTree10 {
+class SegmentTree11 {
 private:
-  Duoram<RegAS> TreeOram; // Duoram to store complete tree
+  Duoram<RegAS> TreeOram;    // Duoram to store complete tree
+  Duoram<RegAS> SiblingOram; // Duoram to store sibling indexes
 
   RegAS computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS left,
                         RegXS right, PerformanceLogger *logger = nullptr,
@@ -20,8 +21,8 @@ public:
   size_t num_items;
   size_t depth;
 
-  SegmentTree10(int player_num, size_t size, size_t d)
-      : TreeOram(player_num, size) {
+  SegmentTree11(int player_num, size_t size, size_t d)
+      : TreeOram(player_num, size), SiblingOram(player_num, size) {
     num_items = size;
     depth = d;
     std::cout << "Segment Tree of depth " << depth << " with " << num_items
@@ -39,4 +40,4 @@ public:
   void printSegmentTree(MPCTIO &tio, yield_t &yield);
 };
 
-void SegTree10(MPCIO &mpcio, const PRACOptions &opts, char **args);
+void SegTree11(MPCIO &mpcio, const PRACOptions &opts, char **args);
