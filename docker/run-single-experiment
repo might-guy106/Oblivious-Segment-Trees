@@ -78,30 +78,30 @@ run_onlineonly() {
     echo ""
     echo "===== Running ONLINEONLY mode ====="
     date "+===== Start %s %F %T"
-    
+
     savefile0=$$.p0.onlineonly.out
     savefile1=$$.p1.onlineonly.out
     savefile2=$$.p2.onlineonly.out
     resources_file="/tmp/resources_${DEPTH}_${UPDATES}_${QUERIES}.txt"
-    
+
     docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 bash -c "$PRAC_NUMA_P0 stdbuf -o 0 ./prac -o $targ_p0 0 $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES > $savefile0 2>&1" &
     docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p1 bash -c "$PRAC_NUMA_P1 stdbuf -o 0 ./prac -o $targ_p1 1 $p0addr $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES > $savefile1 2>&1" &
     docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p2 bash -c "$PRAC_NUMA_P2 stdbuf -o 0 ./prac -o $targ_p2 2 $p0addr $p1addr $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES > $savefile2 2>&1" &
     wait
-    
+
     echo "===== P0 output (onlineonly) ====="
     docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 cat $savefile0
-    
-    # Extract resources from output in each container independently
-    echo "Extracting resource requirements from onlineonly output..."
+
+    # Extract resources from P0 output and save to all containers
+    echo "Extracting resource requirements from P0 onlineonly output..."
     RESOURCES=$(docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 bash -c "grep 'Precomputed values used:' $savefile0 | tail -1 | sed 's/.*T0 //'")
     echo "$RESOURCES"
-    
-    # Each container extracts and saves its own resources file
-    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 bash -c "grep 'Precomputed values used:' $savefile0 | tail -1 | sed 's/.*T0 //' > $resources_file"
-    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p1 bash -c "grep 'Precomputed values used:' $savefile1 | tail -1 | sed 's/.*T0 //' > $resources_file"
-    docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p2 bash -c "grep 'Precomputed values used:' $savefile2 | tail -1 | sed 's/.*T0 //' > $resources_file"
-    
+
+    # Save extracted resources to all containers
+    for container in ${PRAC_DOCKER_PREFIX}prac_p0 ${PRAC_DOCKER_PREFIX}prac_p1 ${PRAC_DOCKER_PREFIX}prac_p2; do
+        docker exec -w /root/prac $container bash -c "echo '$RESOURCES' > $resources_file"
+    done
+
     docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 rm -f $savefile0
     echo "===== P1 output (onlineonly) ====="
     docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p1 cat $savefile1
@@ -109,7 +109,7 @@ run_onlineonly() {
     echo "===== P2 output (onlineonly) ====="
     docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p2 cat $savefile2
     docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p2 rm -f $savefile2
-    
+
     date "+===== End %s %F %T"
 }
 
@@ -118,10 +118,10 @@ run_preprocessing() {
     echo ""
     echo "===== Running PREPROCESSING mode ====="
     date "+===== Start %s %F %T"
-    
+
     # Resources should have been extracted by onlineonly run
     resources_file="/tmp/resources_${DEPTH}_${UPDATES}_${QUERIES}.txt"
-    
+
     # Check if resources file exists
     if ! docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 bash -c "[ -f $resources_file ]" 2>/dev/null; then
         echo "Warning: Resources file not found at $resources_file"
@@ -132,11 +132,11 @@ run_preprocessing() {
         echo "Using resources from file:"
         docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 bash -c "cat $resources_file"
     fi
-    
+
     savefile0=$$.p0.preproc.out
     savefile1=$$.p1.preproc.out
     savefile2=$$.p2.preproc.out
-    
+
     # Run preprocessing - Player 0 first to accept connections
     docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 bash -c "$PRAC_NUMA_P0 stdbuf -o 0 ./prac -p $targ_p0 0 > $savefile0 2>&1" &
     sleep 1
@@ -147,7 +147,7 @@ run_preprocessing() {
         $PRAC_NUMA_P2 stdbuf -o 0 ./prac -p $targ_p2 2 $p0addr $p1addr \$RESOURCES > $savefile2 2>&1
     " &
     wait
-    
+
     echo "===== P0 output (preprocessing) ====="
     docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 cat $savefile0
     docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 rm -f $savefile0
@@ -157,7 +157,7 @@ run_preprocessing() {
     echo "===== P2 output (preprocessing) ====="
     docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p2 cat $savefile2
     docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p2 rm -f $savefile2
-    
+
     # Rename preprocessing log to include variant info (in P2 container)
     echo "Renaming preprocessing log to include variant..."
     docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p2 bash -c "
@@ -168,12 +168,12 @@ run_preprocessing() {
             echo \"Renamed to: performance_preprocessing_st9_d${DEPTH}_u${UPDATES}_q${QUERIES}_\${TIMESTAMP}.csv\"
         fi
     "
-    
+
     # Clean up resources file from all containers
     for container in ${PRAC_DOCKER_PREFIX}prac_p0 ${PRAC_DOCKER_PREFIX}prac_p1 ${PRAC_DOCKER_PREFIX}prac_p2; do
         docker exec -w /root/prac $container rm -f $resources_file 2>/dev/null
     done
-    
+
     date "+===== End %s %F %T"
 }
 
@@ -182,16 +182,16 @@ run_online() {
     echo ""
     echo "===== Running ONLINE mode ====="
     date "+===== Start %s %F %T"
-    
+
     savefile0=$$.p0.online.out
     savefile1=$$.p1.online.out
     savefile2=$$.p2.online.out
-    
+
     docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 bash -c "$PRAC_NUMA_P0 stdbuf -o 0 ./prac $targ_p0 0 $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES > $savefile0 2>&1" &
     docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p1 bash -c "$PRAC_NUMA_P1 stdbuf -o 0 ./prac $targ_p1 1 $p0addr $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES > $savefile1 2>&1" &
     docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p2 bash -c "$PRAC_NUMA_P2 stdbuf -o 0 ./prac $targ_p2 2 $p0addr $p1addr $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES > $savefile2 2>&1" &
     wait
-    
+
     echo "===== P0 output (online) ====="
     docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 cat $savefile0
     docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 rm -f $savefile0
@@ -201,7 +201,7 @@ run_online() {
     echo "===== P2 output (online) ====="
     docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p2 cat $savefile2
     docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p2 rm -f $savefile2
-    
+
     date "+===== End %s %F %T"
 }
 

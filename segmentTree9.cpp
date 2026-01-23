@@ -357,7 +357,7 @@ RegAS SegmentTree9::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, R
         oss << "\nLevel-wise Timing in ms (relative to parallel start) "
                "[T=Timestamp, "
                "D=Duration]:\n";
-        oss << "Level | Start(T)   | Indices(D) | IsDone(D)  | SibStart(T) | LeftORAM(T) | RightORAM(T) | Siblings(D) "
+        oss << "Level | Start(T)   | Indices(T) | IsDone(T)  | SibStart(T) | LeftORAM(T) | RightORAM(T) | Siblings(T) "
                "| "
                "End(T)     | Total(D)\n";
         oss << "------+------------+------------+------------+-------------+-------------+--------------+-------------+"
@@ -375,10 +375,10 @@ RegAS SegmentTree9::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, R
                 double t_end = stats[level].end_ms;
 
                 oss << std::setw(5) << level << " | " << std::setw(10) << std::fixed << std::setprecision(3) << t_start
-                    << " | " << std::setw(10) << (t_idx - t_start) << " | " << std::setw(10) << (t_done - t_idx)
-                    << " | " << std::setw(11) << t_sib_start << " | " << std::setw(11) << t_left_oram << " | "
-                    << std::setw(12) << t_right_oram << " | " << std::setw(11) << (t_sib - t_done) << " | "
-                    << std::setw(10) << t_end << " | " << std::setw(8) << (t_end - t_start) << "\n";
+                    << " | " << std::setw(10) << (t_idx) << " | " << std::setw(10) << (t_done) << " | " << std::setw(11)
+                    << t_sib_start << " | " << std::setw(11) << t_left_oram << " | " << std::setw(12) << t_right_oram
+                    << " | " << std::setw(11) << (t_sib) << " | " << std::setw(10) << t_end << " | " << std::setw(8)
+                    << (t_end - t_start) << "\n";
 
                 // oss << std::setw(5) << level << " | " << std::setw(10) << std::fixed << std::setprecision(3) <<
                 // t_start

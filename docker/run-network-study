@@ -14,9 +14,9 @@ if [[ $BASH_SOURCE = */* ]]; then
 fi
 
 # Default values (smaller subset for network studies)
-LATENCIES="5 10 20 30"
+LATENCIES="0 20 40 60 80 100"
 BANDWIDTHS="10 50 100"
-DEPTHS="4 6 8"
+DEPTHS="4 6 8 12 16"
 VARIANT="segmenttree9"
 UPDATES="5"
 QUERIES="5"
@@ -97,26 +97,27 @@ echo "Cleaning existing logs in containers..."
 for lat in "${LAT_ARRAY[@]}"; do
     for bw in "${BW_ARRAY[@]}"; do
         CURRENT_CONFIG=$((CURRENT_CONFIG + 1))
-        
+
         echo ""
         echo "========================================="
         echo "Network Configuration $CURRENT_CONFIG/$TOTAL_CONFIGS"
         echo "Latency: ${lat}ms, Bandwidth: ${bw}mbit"
         echo "========================================="
-        
+
         # Set network parameters
         echo "Setting network parameters..."
         ./set-networking "${lat}ms" "${bw}mbit"
-        
+
         # Run batch experiments for this network configuration
         echo "Running batch experiments with current network settings..."
         ./run-batch-experiments --depths "$DEPTHS" --updates "$UPDATES" --queries "$QUERIES" --variant "$VARIANT"
-        
+
         # Tag all logs with network parameters
         echo "Tagging logs with network parameters..."
         lat_val=$(echo $lat | tr -d 'ms')
         bw_val=$(echo $bw | tr -d 'mbit')
-        
+
+        # Rename onlineonly, online csv files with network parameters
         docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p0 bash -c "
             cd logs
             # Tag CSV files
@@ -128,7 +129,7 @@ for lat in "${LAT_ARRAY[@]}"; do
                     echo \"Renamed \$f -> \$new_name\"
                 fi
             done
-            
+
             # Tag execution log files
             for f in execution_*.log; do
                 if [[ \"\$f\" != *\"_lat\"* ]]; then
@@ -139,11 +140,35 @@ for lat in "${LAT_ARRAY[@]}"; do
                 fi
             done
         "
-        
+
+        # Rename preprocessing csv files with network parameters
+        docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p2 bash -c "
+            cd logs
+            # Tag CSV files
+            for f in performance_*.csv; do
+                if [[ \"\$f\" != *\"_lat\"* ]]; then
+                    base=\"\${f%.csv}\"
+                    new_name=\"\${base}_lat${lat_val}ms_bw${bw_val}mbit.csv\"
+                    mv \"\$f\" \"\$new_name\"
+                    echo \"Renamed \$f -> \$new_name\"
+                fi
+            done
+
+            # Tag execution log files
+            for f in execution_*.log; do
+                if [[ \"\$f\" != *\"_lat\"* ]]; then
+                    base=\"\${f%.log}\"
+                    new_name=\"\${base}_lat${lat_val}ms_bw${bw_val}mbit.log\"
+                    mv \"\$f\" \"\$new_name\"
+                    echo \"Renamed \$f -> \$new_name\"
+                fi
+            done
+        "
+
         # Unset network parameters before next iteration
         echo "Unsetting network parameters..."
         ./unset-networking
-        
+
         echo "Network configuration $CURRENT_CONFIG/$TOTAL_CONFIGS completed"
         sleep 2
     done

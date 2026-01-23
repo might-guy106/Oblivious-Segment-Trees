@@ -376,40 +376,94 @@ def analyze_network_impact(data, output_dir):
         if not lat_vals:
             continue
 
-        # Plot: Update performance vs latency
-        plt.figure(figsize=(12, 5))
+        # Calculate two-phase totals
+        two_phase_update = [pp + on for pp, on in zip(pp_update, on_update)]
+        two_phase_query = [pp + on for pp, on in zip(pp_query, on_query)]
 
-        plt.subplot(1, 2, 1)
-        plt.plot(lat_vals, oo_update, marker="o", label="OnlineOnly")
-        plt.plot(lat_vals, pp_update, marker="s", label="Preprocessing")
-        plt.plot(lat_vals, on_update, marker="^", label="Online")
-        two_phase = [pp + on for pp, on in zip(pp_update, on_update)]
-        plt.plot(lat_vals, two_phase, marker="D", label="Two-Phase Total")
-        plt.xlabel("Latency (ms)")
-        plt.ylabel("Time (ms)")
-        plt.title(f"Update Performance vs Latency\n(BW={bw}mbit, Depth={ref_depth})")
-        plt.grid(True)
-        plt.legend()
+        # Plot: Update performance vs latency (separate file)
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
 
-        plt.subplot(1, 2, 2)
-        plt.plot(lat_vals, oo_query, marker="o", label="OnlineOnly")
-        plt.plot(lat_vals, pp_query, marker="s", label="Preprocessing")
-        plt.plot(lat_vals, on_query, marker="^", label="Online")
-        two_phase = [pp + on for pp, on in zip(pp_query, on_query)]
-        plt.plot(lat_vals, two_phase, marker="D", label="Two-Phase Total")
-        plt.xlabel("Latency (ms)")
-        plt.ylabel("Time (ms)")
-        plt.title(f"Query Performance vs Latency\n(BW={bw}mbit, Depth={ref_depth})")
-        plt.grid(True)
-        plt.legend()
+        # Single Phase - OnlineOnly
+        ax1.plot(
+            lat_vals, oo_update, marker="o", color="blue", label="OnlineOnly (Time)"
+        )
+        annotate_points(lat_vals, oo_update, ax=ax1)
+        ax1.set_xlabel("Latency (ms)")
+        ax1.set_ylabel("Time (ms)")
+        ax1.set_title("Single Phase (OnlineOnly)")
+        ax1.grid(True)
+        ax1.legend()
 
+        # Two Phase - Preprocessing + Online + Total
+        ax2.plot(lat_vals, pp_update, marker="s", color="orange", label="Preprocessing")
+        annotate_points(lat_vals, pp_update, ax=ax2)
+        ax2.plot(lat_vals, on_update, marker="^", color="green", label="Online")
+        annotate_points(lat_vals, on_update, ax=ax2)
+        ax2.plot(
+            lat_vals,
+            two_phase_update,
+            marker="D",
+            color="red",
+            label="Preproc + Online",
+        )
+        annotate_points(lat_vals, two_phase_update, ax=ax2)
+        ax2.set_xlabel("Latency (ms)")
+        ax2.set_ylabel("Time (ms)")
+        ax2.set_title("Two Phase (Preproc + Online)")
+        ax2.grid(True)
+        ax2.legend()
+
+        plt.suptitle(f"Update Performance vs Latency (BW={bw}mbit, Depth={ref_depth})")
         plt.tight_layout()
         plt.savefig(
-            os.path.join(output_dir, f"latency_impact_bw{bw}mbit_d{ref_depth}.png")
+            os.path.join(
+                output_dir, f"latency_impact_update_bw{bw}mbit_d{ref_depth}.png"
+            )
         )
         plt.close()
         console.print(
-            f"[green]Saved: latency_impact_bw{bw}mbit_d{ref_depth}.png[/green]"
+            f"[green]Saved: latency_impact_update_bw{bw}mbit_d{ref_depth}.png[/green]"
+        )
+
+        # Plot: Query performance vs latency (separate file)
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+
+        # Single Phase - OnlineOnly
+        ax1.plot(
+            lat_vals, oo_query, marker="o", color="blue", label="OnlineOnly (Time)"
+        )
+        annotate_points(lat_vals, oo_query, ax=ax1)
+        ax1.set_xlabel("Latency (ms)")
+        ax1.set_ylabel("Time (ms)")
+        ax1.set_title("Single Phase (OnlineOnly)")
+        ax1.grid(True)
+        ax1.legend()
+
+        # Two Phase - Preprocessing + Online + Total
+        ax2.plot(lat_vals, pp_query, marker="s", color="orange", label="Preprocessing")
+        annotate_points(lat_vals, pp_query, ax=ax2)
+        ax2.plot(lat_vals, on_query, marker="^", color="green", label="Online")
+        annotate_points(lat_vals, on_query, ax=ax2)
+        ax2.plot(
+            lat_vals, two_phase_query, marker="D", color="red", label="Preproc + Online"
+        )
+        annotate_points(lat_vals, two_phase_query, ax=ax2)
+        ax2.set_xlabel("Latency (ms)")
+        ax2.set_ylabel("Time (ms)")
+        ax2.set_title("Two Phase (Preproc + Online)")
+        ax2.grid(True)
+        ax2.legend()
+
+        plt.suptitle(f"Query Performance vs Latency (BW={bw}mbit, Depth={ref_depth})")
+        plt.tight_layout()
+        plt.savefig(
+            os.path.join(
+                output_dir, f"latency_impact_query_bw{bw}mbit_d{ref_depth}.png"
+            )
+        )
+        plt.close()
+        console.print(
+            f"[green]Saved: latency_impact_query_bw{bw}mbit_d{ref_depth}.png[/green]"
         )
 
     # 2. Fixed Latency, Varying Bandwidth
@@ -463,40 +517,90 @@ def analyze_network_impact(data, output_dir):
         if not bw_vals:
             continue
 
-        # Plot: Update performance vs bandwidth
-        plt.figure(figsize=(12, 5))
+        # Calculate two-phase totals
+        two_phase_update = [pp + on for pp, on in zip(pp_update, on_update)]
+        two_phase_query = [pp + on for pp, on in zip(pp_query, on_query)]
 
-        plt.subplot(1, 2, 1)
-        plt.plot(bw_vals, oo_update, marker="o", label="OnlineOnly")
-        plt.plot(bw_vals, pp_update, marker="s", label="Preprocessing")
-        plt.plot(bw_vals, on_update, marker="^", label="Online")
-        two_phase = [pp + on for pp, on in zip(pp_update, on_update)]
-        plt.plot(bw_vals, two_phase, marker="D", label="Two-Phase Total")
-        plt.xlabel("Bandwidth (mbit)")
-        plt.ylabel("Time (ms)")
-        plt.title(f"Update Performance vs Bandwidth\n(Lat={lat}ms, Depth={ref_depth})")
-        plt.grid(True)
-        plt.legend()
+        # Plot: Update performance vs bandwidth (separate file)
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
 
-        plt.subplot(1, 2, 2)
-        plt.plot(bw_vals, oo_query, marker="o", label="OnlineOnly")
-        plt.plot(bw_vals, pp_query, marker="s", label="Preprocessing")
-        plt.plot(bw_vals, on_query, marker="^", label="Online")
-        two_phase = [pp + on for pp, on in zip(pp_query, on_query)]
-        plt.plot(bw_vals, two_phase, marker="D", label="Two-Phase Total")
-        plt.xlabel("Bandwidth (mbit)")
-        plt.ylabel("Time (ms)")
-        plt.title(f"Query Performance vs Bandwidth\n(Lat={lat}ms, Depth={ref_depth})")
-        plt.grid(True)
-        plt.legend()
+        # Single Phase - OnlineOnly
+        ax1.plot(
+            bw_vals, oo_update, marker="o", color="blue", label="OnlineOnly (Time)"
+        )
+        annotate_points(bw_vals, oo_update, ax=ax1)
+        ax1.set_xlabel("Bandwidth (mbit)")
+        ax1.set_ylabel("Time (ms)")
+        ax1.set_title("Single Phase (OnlineOnly)")
+        ax1.grid(True)
+        ax1.legend()
 
+        # Two Phase - Preprocessing + Online + Total
+        ax2.plot(bw_vals, pp_update, marker="s", color="orange", label="Preprocessing")
+        annotate_points(bw_vals, pp_update, ax=ax2)
+        ax2.plot(bw_vals, on_update, marker="^", color="green", label="Online")
+        annotate_points(bw_vals, on_update, ax=ax2)
+        ax2.plot(
+            bw_vals, two_phase_update, marker="D", color="red", label="Preproc + Online"
+        )
+        annotate_points(bw_vals, two_phase_update, ax=ax2)
+        ax2.set_xlabel("Bandwidth (mbit)")
+        ax2.set_ylabel("Time (ms)")
+        ax2.set_title("Two Phase (Preproc + Online)")
+        ax2.grid(True)
+        ax2.legend()
+
+        plt.suptitle(
+            f"Update Performance vs Bandwidth (Lat={lat}ms, Depth={ref_depth})"
+        )
         plt.tight_layout()
         plt.savefig(
-            os.path.join(output_dir, f"bandwidth_impact_lat{lat}ms_d{ref_depth}.png")
+            os.path.join(
+                output_dir, f"bandwidth_impact_update_lat{lat}ms_d{ref_depth}.png"
+            )
         )
         plt.close()
         console.print(
-            f"[green]Saved: bandwidth_impact_lat{lat}ms_d{ref_depth}.png[/green]"
+            f"[green]Saved: bandwidth_impact_update_lat{lat}ms_d{ref_depth}.png[/green]"
+        )
+
+        # Plot: Query performance vs bandwidth (separate file)
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+
+        # Single Phase - OnlineOnly
+        ax1.plot(bw_vals, oo_query, marker="o", color="blue", label="OnlineOnly (Time)")
+        annotate_points(bw_vals, oo_query, ax=ax1)
+        ax1.set_xlabel("Bandwidth (mbit)")
+        ax1.set_ylabel("Time (ms)")
+        ax1.set_title("Single Phase (OnlineOnly)")
+        ax1.grid(True)
+        ax1.legend()
+
+        # Two Phase - Preprocessing + Online + Total
+        ax2.plot(bw_vals, pp_query, marker="s", color="orange", label="Preprocessing")
+        annotate_points(bw_vals, pp_query, ax=ax2)
+        ax2.plot(bw_vals, on_query, marker="^", color="green", label="Online")
+        annotate_points(bw_vals, on_query, ax=ax2)
+        ax2.plot(
+            bw_vals, two_phase_query, marker="D", color="red", label="Preproc + Online"
+        )
+        annotate_points(bw_vals, two_phase_query, ax=ax2)
+        ax2.set_xlabel("Bandwidth (mbit)")
+        ax2.set_ylabel("Time (ms)")
+        ax2.set_title("Two Phase (Preproc + Online)")
+        ax2.grid(True)
+        ax2.legend()
+
+        plt.suptitle(f"Query Performance vs Bandwidth (Lat={lat}ms, Depth={ref_depth})")
+        plt.tight_layout()
+        plt.savefig(
+            os.path.join(
+                output_dir, f"bandwidth_impact_query_lat{lat}ms_d{ref_depth}.png"
+            )
+        )
+        plt.close()
+        console.print(
+            f"[green]Saved: bandwidth_impact_query_lat{lat}ms_d{ref_depth}.png[/green]"
         )
 
 
@@ -545,7 +649,11 @@ def main():
     console.print("[bold green]=========================================[/bold green]")
     console.print(f"\nPlots saved to: {network_plots_dir}/")
     console.print("  - Per-config plots: <latency>ms_<bandwidth>mbit/")
-    console.print("  - Impact analysis: latency_impact_*.png, bandwidth_impact_*.png")
+    console.print("  - Impact analysis:")
+    console.print("    * latency_impact_update_*.png")
+    console.print("    * latency_impact_query_*.png")
+    console.print("    * bandwidth_impact_update_*.png")
+    console.print("    * bandwidth_impact_query_*.png")
 
 
 if __name__ == "__main__":
