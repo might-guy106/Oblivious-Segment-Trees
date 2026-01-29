@@ -161,13 +161,15 @@ run_preprocessing() {
     # Rename preprocessing log to include variant info (in P2 container)
     echo "Renaming preprocessing log to include variant..."
     docker exec -w /root/prac ${PRAC_DOCKER_PREFIX}prac_p2 bash -c "
-        PREPROC=\$(ls -t logs/preprocessing_*.csv 2>/dev/null | head -n1)
-        if [ -n \"\$PREPROC\" ]; then
-            TIMESTAMP=\$(basename \"\$PREPROC\" | sed -E 's/preprocessing_([0-9]{8}_[0-9]{6})\.csv/\1/')
-            mv \"\$PREPROC\" logs/performance_preprocessing_st9_d${DEPTH}_u${UPDATES}_q${QUERIES}_\${TIMESTAMP}.csv
-            echo \"Renamed to: performance_preprocessing_st9_d${DEPTH}_u${UPDATES}_q${QUERIES}_\${TIMESTAMP}.csv\"
-        fi
-    "
+            PREPROC=\$(ls -t logs/preprocessing_*.csv 2>/dev/null | head -n1)
+            if [ -n \"\$PREPROC\" ]; then
+                TIMESTAMP=\$(basename \"\$PREPROC\" | sed -E 's/preprocessing_([0-9]{8}_[0-9]{6})\.csv/\1/')
+                STVAR=\$(echo ${VARIANT} | sed -E 's/segmenttree([0-9]+)/st\1/')
+                mv \"\$PREPROC\" logs/performance_preprocessing_\${STVAR}_d${DEPTH}_u${UPDATES}_q${QUERIES}_\${TIMESTAMP}.csv
+                echo \"Renamed to: performance_preprocessing_\${STVAR}_d${DEPTH}_u${UPDATES}_q${QUERIES}_\${TIMESTAMP}.csv\"
+            fi
+        "
+
 
     # Clean up resources file from all containers
     for container in ${PRAC_DOCKER_PREFIX}prac_p0 ${PRAC_DOCKER_PREFIX}prac_p1 ${PRAC_DOCKER_PREFIX}prac_p2; do

@@ -92,7 +92,7 @@ struct LevelStats {
     double end_ms;
 };
 
-size_t arrayIndexToLevelIndex(size_t idx) {
+size_t arrayIndexToLevelIndex9(size_t idx) {
     // Compute level as the floor of log2(idx)
     size_t level = static_cast<size_t>(std::log2(idx));
     // For a complete binary tree with root at index 1,
@@ -135,7 +135,7 @@ void SegmentTree9::init(MPCTIO &tio, yield_t &yield) {
     auto SiblingArray = SiblingOram.flat(tio, yield);
     SiblingArray.init([this](size_t i) -> size_t {
         if (i >= 1 && i < num_items) {
-            return arrayIndexToLevelIndex((i % 2 == 0) ? (i + 1) : (i - 1)); // even index store right sibling, odd
+            return arrayIndexToLevelIndex9((i % 2 == 0) ? (i + 1) : (i - 1)); // even index store right sibling, odd
                                                                              // index store left sibling (level index)
         } else {
             return size_t(0);

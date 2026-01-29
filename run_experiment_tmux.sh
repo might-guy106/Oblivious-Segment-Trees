@@ -170,7 +170,7 @@ run_three_phases() {
     tmux send-keys -t "$SESSION_NAME:0.2" "./prac -t $THREADS 2 localhost localhost $VARIANT -d $DEPTH -u $UPDATES -q $QUERIES" C-m
 
     # Cleanup and detach after Phase 3
-    tmux send-keys -t "$SESSION_NAME:0.0" "echo 'All 3 phases completed! Cleaning up...'; rm -f $RESOURCES_FILE /tmp/phase1_output_${SESSION_NAME}.log; rm -rf *t0; echo 'Detaching session in 5 seconds...'; sleep 5; tmux detach-client -s \"$SESSION_NAME\"" C-m
+    tmux send-keys -t "$SESSION_NAME:0.0" "echo 'All 3 phases completed! Cleaning up...'; rm -f $RESOURCES_FILE /tmp/phase1_output_${SESSION_NAME}.log; rm -rf *t0; echo 'Detaching session in 2 seconds...'; sleep 5; tmux detach-client -s \"$SESSION_NAME\"" C-m
 }
 
 # Execute phases (optionally Phase 1 only)

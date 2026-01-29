@@ -18,19 +18,20 @@ Part B: Network Parameter Impact Analysis
   - Saves plots to: plots/local/network/
 """
 
-import pandas as pd
 import matplotlib
+import pandas as pd
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import seaborn as sns
 import glob
 import os
 import re
 import sys
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+from rich import box
 from rich.console import Console
 from rich.table import Table
-from rich import box
 
 console = Console()
 
@@ -38,12 +39,12 @@ console = Console()
 def parse_filename(filename):
     """
     Extracts parameters from filename.
-    Expected format: performance_TYPE_st9_dD_uU_qQ_latLms_bwBmbit_TIMESTAMP.csv
+    Expected format: performance_TYPE_st11_dD_uU_qQ_latLms_bwBmbit_TIMESTAMP.csv
     """
     basename = os.path.basename(filename)
 
     # Extract log type, depth, updates, queries
-    match = re.search(r"performance_([a-z]+)_st9_d(\d+)_u(\d+)_q(\d+)", basename)
+    match = re.search(r"performance_([a-z]+)_st11_d(\d+)_u(\d+)_q(\d+)", basename)
     if not match:
         return None, None, None, None, None, None
 
@@ -150,7 +151,7 @@ def annotate_points(x_vals, y_vals, ax=None):
             xytext=(0, 5),
             ha="center",
             fontsize=8,
-            bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="gray", alpha=0.9),
+            bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="gray", alpha=0.88),
         )
 
 

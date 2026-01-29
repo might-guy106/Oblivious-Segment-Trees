@@ -4,8 +4,8 @@
 
 set -e
 
-DEPTHS=(4 8 12 16)
-VARIANT="segmenttree9"
+DEPTHS=(4 6 8 10 12 14)
+VARIANT="segmenttree11"
 THREADS=8
 
 echo "Starting batch experiments..."

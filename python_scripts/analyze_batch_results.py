@@ -1,10 +1,11 @@
 import glob
-import re
 import os
+import re
+
 import pandas as pd
+from rich import box
 from rich.console import Console
 from rich.table import Table
-from rich import box
 
 console = Console()
 
@@ -15,7 +16,7 @@ def parse_filename(filename):
     basename = os.path.basename(filename)
     # Regex to extract type and parameters
     # Matches: performance_TYPE_st9_d(\d+)_u(\d+)_q(\d+)_...
-    match = re.search(r"performance_([a-z]+)_st9_d(\d+)_u(\d+)_q(\d+)_", basename)
+    match = re.search(r"performance_([a-z]+)_st11_d(\d+)_u(\d+)_q(\d+)_", basename)
     if match:
         log_type = match.group(1)  # online, onlineonly, preprocessing
         depth = int(match.group(2))
