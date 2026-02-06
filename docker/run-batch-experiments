@@ -13,11 +13,11 @@ if [[ $BASH_SOURCE = */* ]]; then
 fi
 
 # Default values
-DEPTHS="4 8 12"
+DEPTHS="4 8 12 16 20 24"
 UPDATES="5"
 QUERIES="5"
 VARIANT="segmenttree11"
-THREADS="8"
+THREADS="auto"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
