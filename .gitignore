@@ -5,10 +5,10 @@
 *.t0
 
 # Logs directory
-logs/
+logs*/
 
 #plots
-plots/
+plots*/
 
 # Other common files to ignore
 *.exe
