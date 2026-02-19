@@ -337,6 +337,7 @@ void SegTree12(MPCIO &mpcio, const PRACOptions &opts, char **args) {
         SegmentTree12 segTree(tio.player(), len, depth);
         segTree.init(tio, yield);
 
+        // Updates
         for (size_t u = 0; u < n_updates; ++u) {
             RegXS index;
             size_t leafStart = (1ULL << (depth - 1));
@@ -350,6 +351,7 @@ void SegTree12(MPCIO &mpcio, const PRACOptions &opts, char **args) {
             segTree.Update(tio, mpcio, yield, index, value);
         }
 
+        // Range Queries
         for (size_t q = 0; q < n_queries; ++q) {
             RegXS left_index, right_index;
 
