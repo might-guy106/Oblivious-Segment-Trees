@@ -10,9 +10,8 @@
 #include "mpcops.hpp"
 #include "online.hpp"
 #include "rdpf.hpp"
-#include "segmentTree9.hpp"
-#include "segmentTree11.hpp"
-#include "segmentTree12.hpp"
+#include "segmentTreeBasic.hpp"
+#include "segmentTreeOpt.hpp"
 #include "shapes.hpp"
 
 static void online_test(MPCIO &mpcio, const PRACOptions &opts, char **args) {
@@ -1596,15 +1595,12 @@ void online_main(MPCIO &mpcio, const PRACOptions &opts, char **args) {
     } else if (!strcmp(*args, "weightedcoin")) {
         ++args;
         weighted_coin_test(mpcio, opts, args);
-    } else if (!strcmp(*args, "segmenttree9")) {
+    } else if (!strcmp(*args, "segmenttreeopt")) {
         ++args;
-        SegTree9(mpcio, opts, args);
-    } else if (!strcmp(*args, "segmenttree11")) {
+        SegTreeOpt(mpcio, opts, args);
+    } else if (!strcmp(*args, "segmenttreebasic")) {
         ++args;
-        SegTree11(mpcio, opts, args);
-    } else if (!strcmp(*args, "segmenttree12")) {
-        ++args;
-        SegTree12(mpcio, opts, args);
+        SegTreeBasic(mpcio, opts, args);
     } else {
         std::cerr << "Unknown mode " << *args << "\n";
     }

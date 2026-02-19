@@ -1,21 +1,21 @@
-#include "types.hpp"
-#include "mpcio.hpp"
 #include "coroutine.hpp"
-#include "options.hpp"
-#include "mpcops.hpp"
 #include "duoram.hpp"
+#include "mpcio.hpp"
+#include "mpcops.hpp"
+#include "options.hpp"
+#include "types.hpp"
 
-
-class SegmentTree12 {
-    private:
+class SegmentTreeBasic {
+  private:
     Duoram<RegAS> TreeOram;    // Duoram to store complete tree
     Duoram<RegAS> SiblingOram; // Duoram to store sibling pointers (absolute indices)
 
-    public:
+  public:
     size_t num_items;
     size_t depth;
 
-    SegmentTree12(int player_num, size_t size, size_t d) : TreeOram(player_num, size), SiblingOram(player_num, size) {
+    SegmentTreeBasic(int player_num, size_t size, size_t d)
+        : TreeOram(player_num, size), SiblingOram(player_num, size) {
         num_items = size;
         depth = d;
         std::cout << "Segment Tree of depth " << depth << " with " << num_items << " nodes created" << std::endl;
@@ -33,4 +33,4 @@ class SegmentTree12 {
     void printSegmentTree(MPCTIO &tio, yield_t &yield);
 };
 
-void SegTree12(MPCIO &mpcio, const PRACOptions &opts, char **args);
+void SegTreeBasic(MPCIO &mpcio, const PRACOptions &opts, char **args);

@@ -1,11 +1,11 @@
-#include "segmentTree11.hpp"
+#include "segmentTreeOpt.hpp"
 #include "coroutine.hpp"
 #include "duoram.hpp"
 #include "mpcops.hpp"
 #include "rdpf.hpp"
 
 /*
-The segment tree data structure in SegmentTree11 uses an ARRAY layout (heap-style indexing).
+The segment tree data structure in SegmentTreeOpt uses an ARRAY layout (heap-style indexing).
 
 ARRAY STRUCTURE:
 - Complete binary tree stored in an array with root at index 1
@@ -42,7 +42,7 @@ Indexing notes:
 - Parent of node at array index i is at i/2 (i >> 1). In this implementation,
   indices are maintained as level-relative indices while traversing levels, so
   shifting right still yields the parent index at the next higher level.
-- Unlike SegmentTree9, SegmentTree11 does NOT maintain a separate Sibling ORAM.
+- Unlike SegmentTree9, SegmentTreeOpt does NOT maintain a separate Sibling ORAM.
   Instead, the sibling index is derived via MPC from the current index (using the
   index parity / last bit), and then used to read the sibling value from the Tree
   ORAM.
@@ -76,7 +76,7 @@ Algorithm Overview:
    - Move to parent using level-relative parent index
 */
 
-void SegmentTree11::init(MPCTIO &tio, yield_t &yield) {
+void SegmentTreeOpt::init(MPCTIO &tio, yield_t &yield) {
 
     // Create a flat reference to the main segment tree ORAM
     auto SegTreeArray = TreeOram.flat(tio, yield);
@@ -107,7 +107,7 @@ void SegmentTree11::init(MPCTIO &tio, yield_t &yield) {
 }
 
 // helper function to reconstruct and print SegTreeArray
-void SegmentTree11::printSegmentTree(MPCTIO &tio, yield_t &yield) {
+void SegmentTreeOpt::printSegmentTree(MPCTIO &tio, yield_t &yield) {
     auto SegTreeArray = TreeOram.flat(tio, yield);
     auto SegTreeRecons = SegTreeArray.reconstruct();
     for (size_t i = 1; i < num_items; i++) {
@@ -117,7 +117,7 @@ void SegmentTree11::printSegmentTree(MPCTIO &tio, yield_t &yield) {
 
 // Range sum over absolute indices in the tree.
 // NOTE: left and right are absolute tree indices (NOT level-relative leaf indices).
-RegAS SegmentTree11::RangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS leftLevelIndex, RegXS rightLevelIndex) {
+RegAS SegmentTreeOpt::RangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS leftLevelIndex, RegXS rightLevelIndex) {
 
     auto SegTreeArray = TreeOram.flat(tio, yield);
 
@@ -169,9 +169,7 @@ RegAS SegmentTree11::RangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS l
             RegAS rightIndexAS;
             run_coroutines(
                 sub_yield,
-                [&tio, leftIndex, &leftIndexAS](yield_t &yield) {
-                    mpc_xs_to_as(tio, yield, leftIndexAS, leftIndex);
-                },
+                [&tio, leftIndex, &leftIndexAS](yield_t &yield) { mpc_xs_to_as(tio, yield, leftIndexAS, leftIndex); },
                 [&tio, rightIndex, &rightIndexAS](yield_t &yield) {
                     mpc_xs_to_as(tio, yield, rightIndexAS, rightIndex);
                 });
@@ -196,7 +194,6 @@ RegAS SegmentTree11::RangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS l
             run_coroutines(
                 sub_yield,
                 [&tio, &levelTreeArray, one, isNotDone, leftIndex, leftIndexAS, &leftSum, leftLastBit](yield_t &yield) {
-
                     RegAS plusOne = leftIndexAS + one;
                     RegAS minusOne = leftIndexAS - one;
                     // leftLastBit=0 (left child)  → sibling = i+1 (plusOne)
@@ -211,8 +208,8 @@ RegAS SegmentTree11::RangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS l
                     mpc_and(tio, yield, isLeftIncluded, isNotDone, leftLastBit ^ tio.player());
                     mpc_flagmult(tio, yield, leftSum, isLeftIncluded, leftSibValue);
                 },
-                [&tio, &levelTreeArray, one, isNotDone, rightIndex, rightIndexAS, &rightSum, rightLastBit](yield_t &yield) {
-
+                [&tio, &levelTreeArray, one, isNotDone, rightIndex, rightIndexAS, &rightSum,
+                 rightLastBit](yield_t &yield) {
                     RegAS plusOne = rightIndexAS + one;
                     RegAS minusOne = rightIndexAS - one;
                     // rightLastBit=0 (left child)  → sibling = i+1 (plusOne)
@@ -276,7 +273,7 @@ RegAS SegmentTree11::RangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS l
 }
 
 // Main Update function
-void SegmentTree11::Update(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS index, RegAS value) {
+void SegmentTreeOpt::Update(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS index, RegAS value) {
 
     auto SegTreeArray = TreeOram.flat(tio, yield);
 
@@ -325,7 +322,7 @@ void SegmentTree11::Update(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS inde
 }
 
 // Main function to run Segment Tree 8 operations
-void SegTree11(MPCIO &mpcio, const PRACOptions &opts, char **args) {
+void SegTreeOpt(MPCIO &mpcio, const PRACOptions &opts, char **args) {
     // Parse command line arguments
     int nargs = 0;
     while (args[nargs] != nullptr) {
@@ -356,12 +353,12 @@ void SegTree11(MPCIO &mpcio, const PRACOptions &opts, char **args) {
     auto now = std::time(nullptr);
     auto tm = *std::localtime(&now);
     std::ostringstream exp_id_stream;
-    exp_id_stream << "st11_d" << (int)depth << "_u" << n_updates << "_q" << n_queries << "_"
+    exp_id_stream << "stOpt_d" << (int)depth << "_u" << n_updates << "_q" << n_queries << "_"
                   << std::put_time(&tm, "%Y%m%d_%H%M%S");
     std::string experiment_id = exp_id_stream.str();
 
     run_coroutines(tio, [&tio, &mpcio, len, depth, n_updates, n_queries](yield_t &yield) {
-        SegmentTree11 segTree(tio.player(), len, depth);
+        SegmentTreeOpt segTree(tio.player(), len, depth);
         segTree.init(tio, yield);
 
         // Updates

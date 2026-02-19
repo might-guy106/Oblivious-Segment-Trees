@@ -5,17 +5,15 @@
 #include "options.hpp"
 #include "types.hpp"
 
-
-
-class SegmentTree11 {
+class SegmentTreeOpt {
   private:
-    Duoram<RegAS> TreeOram;    // Duoram to store complete tree
+    Duoram<RegAS> TreeOram; // Duoram to store complete tree
 
   public:
     size_t num_items;
     size_t depth;
 
-    SegmentTree11(int player_num, size_t size, size_t d) : TreeOram(player_num, size) {
+    SegmentTreeOpt(int player_num, size_t size, size_t d) : TreeOram(player_num, size) {
         num_items = size;
         depth = d;
         std::cout << "Segment Tree of depth " << depth << " with " << num_items << " nodes created" << std::endl;
@@ -30,4 +28,4 @@ class SegmentTree11 {
     void printSegmentTree(MPCTIO &tio, yield_t &yield);
 };
 
-void SegTree11(MPCIO &mpcio, const PRACOptions &opts, char **args);
+void SegTreeOpt(MPCIO &mpcio, const PRACOptions &opts, char **args);

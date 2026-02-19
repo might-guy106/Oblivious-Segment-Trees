@@ -1,4 +1,4 @@
-#include "segmentTree12.hpp"
+#include "segmentTreeBasic.hpp"
 #include "coroutine.hpp"
 #include "duoram.hpp"
 #include "mpcops.hpp"
@@ -6,7 +6,7 @@
 #include "types.hpp"
 
 /*
-The segment tree data structure in SegmentTree12 uses an ARRAY layout (heap-style indexing).
+The segment tree data structure in SegmentTreeBasic uses an ARRAY layout (heap-style indexing).
 
 ARRAY STRUCTURE:
 - Complete binary tree stored in an array with root at index 1
@@ -72,7 +72,7 @@ Algorithm Overview:
    - Move to parent using index >>= 1
 */
 
-void SegmentTree12::init(MPCTIO &tio, yield_t &yield) {
+void SegmentTreeBasic::init(MPCTIO &tio, yield_t &yield) {
 
     // Create a flat reference to the main segment tree ORAM
     auto SegTreeArray = TreeOram.flat(tio, yield);
@@ -116,7 +116,7 @@ void SegmentTree12::init(MPCTIO &tio, yield_t &yield) {
 }
 
 // helper function to reconstruct and print SegTreeArray
-void SegmentTree12::printSegmentTree(MPCTIO &tio, yield_t &yield) {
+void SegmentTreeBasic::printSegmentTree(MPCTIO &tio, yield_t &yield) {
     auto SegTreeArray = TreeOram.flat(tio, yield);
     auto SegTreeRecons = SegTreeArray.reconstruct();
     for (size_t i = 1; i < num_items; i++) {
@@ -125,7 +125,7 @@ void SegmentTree12::printSegmentTree(MPCTIO &tio, yield_t &yield) {
 }
 
 // Main function to compute range sum
-RegAS SegmentTree12::RangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS leftIndex, RegXS rightIndex) {
+RegAS SegmentTreeBasic::RangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS leftIndex, RegXS rightIndex) {
 
     auto SegTreeArray = TreeOram.flat(tio, yield);
     auto SiblingArray = SiblingOram.flat(tio, yield);
@@ -265,7 +265,7 @@ RegAS SegmentTree12::RangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS l
 }
 
 // Main Update function
-void SegmentTree12::Update(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS index, RegAS value) {
+void SegmentTreeBasic::Update(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS index, RegAS value) {
 
     auto SegTreeArray = TreeOram.flat(tio, yield);
 
@@ -298,7 +298,7 @@ void SegmentTree12::Update(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS inde
 }
 
 // Main function to run Segment Tree 8 operations
-void SegTree12(MPCIO &mpcio, const PRACOptions &opts, char **args) {
+void SegTreeBasic(MPCIO &mpcio, const PRACOptions &opts, char **args) {
     // Parse command line arguments
     int nargs = 0;
     while (args[nargs] != nullptr) {
@@ -329,12 +329,12 @@ void SegTree12(MPCIO &mpcio, const PRACOptions &opts, char **args) {
     auto now = std::time(nullptr);
     auto tm = *std::localtime(&now);
     std::ostringstream exp_id_stream;
-    exp_id_stream << "st12_d" << (int)depth << "_u" << n_updates << "_q" << n_queries << "_"
+    exp_id_stream << "stBasic_d" << (int)depth << "_u" << n_updates << "_q" << n_queries << "_"
                   << std::put_time(&tm, "%Y%m%d_%H%M%S");
     std::string experiment_id = exp_id_stream.str();
 
     run_coroutines(tio, [&tio, &mpcio, len, depth, n_updates, n_queries](yield_t &yield) {
-        SegmentTree12 segTree(tio.player(), len, depth);
+        SegmentTreeBasic segTree(tio.player(), len, depth);
         segTree.init(tio, yield);
 
         // Updates
