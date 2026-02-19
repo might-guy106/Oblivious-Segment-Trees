@@ -361,7 +361,11 @@ void SegTree12(MPCIO &mpcio, const PRACOptions &opts, char **args) {
             left_index.set(tio.player() == 0 ? (leafStart + left_val) : 0);
             right_index.set(tio.player() == 0 ? (leafStart + right_val) : 0);
 
-            (void)segTree.RangeSum(tio, mpcio, yield, left_index, right_index);
+            RegAS sum = segTree.RangeSum(tio, mpcio, yield, left_index, right_index);
+
+            //reconstruct sum
+            auto sum_recon = mpc_reconstruct(tio, yield, sum);
+            std::cout << "Query " << q << ": " << sum_recon << std::endl;
         }
     });
 }

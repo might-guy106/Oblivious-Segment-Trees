@@ -5,15 +5,11 @@
 #include "options.hpp"
 #include "types.hpp"
 
-// Forward declaration
-class PerformanceLogger;
+
 
 class SegmentTree11 {
   private:
     Duoram<RegAS> TreeOram;    // Duoram to store complete tree
-
-    RegAS computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS left, RegXS right,
-                          PerformanceLogger *logger = nullptr, size_t operation_id = 0);
 
   public:
     size_t num_items;
@@ -27,10 +23,10 @@ class SegmentTree11 {
 
     void init(MPCTIO &tio, yield_t &yield);
 
-    void RangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS left, RegXS right,
-                  PerformanceLogger *logger = nullptr, size_t operation_id = 0);
-    void Update(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS index, RegAS value,
-                PerformanceLogger *logger = nullptr, size_t operation_id = 0);
+    // Range sum over absolute indices in the tree.
+    // NOTE: left and right are absolute tree indices (NOT level-relative leaf indices).
+    RegAS RangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS left, RegXS right);
+    void Update(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS index, RegAS value);
     void printSegmentTree(MPCTIO &tio, yield_t &yield);
 };
 
