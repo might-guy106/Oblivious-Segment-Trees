@@ -151,13 +151,12 @@ RegAS SegmentTree11::RangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS l
             size_t levelStart = 1ULL << level;
             size_t levelLength = (1ULL << level) + 1;
 
-            // Create one, zero, minus one which are required in mpc operations further
+            // Create one, zero which are required in mpc operations further
             RegAS one;
             one.set(tio.player());
+
             RegAS zero;
             zero.set(0);
-            RegAS minusone;
-            minusone.set(tio.player() == 0 ? -1 : 0);
 
             typename Duoram<RegAS>::Flat levelTreeArray(SegTreeArray, tio, sub_yield, levelStart, levelLength);
             // typename Duoram<RegAS>::Flat levelSiblingArray(SiblingArray, tio, sub_yield, levelStart, levelLength);
@@ -197,16 +196,12 @@ RegAS SegmentTree11::RangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS l
             run_coroutines(
                 sub_yield,
                 [&tio, &levelTreeArray, one, isNotDone, leftIndex, leftIndexAS, &leftSum, leftLastBit](yield_t &yield) {
-                    // Sibling index for a node at (level-relative) index i is:
-                    // - i+1 if i is even (left child)
-                    // - i-1 if i is odd  (right child)
-                    RegAS leftSibIndex;
 
                     RegAS plusOne = leftIndexAS + one;
                     RegAS minusOne = leftIndexAS - one;
-                    // mpc_select: z = x if f=0, z = y if f=1
                     // leftLastBit=0 (left child)  → sibling = i+1 (plusOne)
                     // leftLastBit=1 (right child) → sibling = i-1 (minusOne)
+                    RegAS leftSibIndex;
                     mpc_select(tio, yield, leftSibIndex, leftLastBit, plusOne, minusOne);
 
                     auto levelTreeArrayCoro = levelTreeArray.context(yield);
@@ -217,16 +212,12 @@ RegAS SegmentTree11::RangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS l
                     mpc_flagmult(tio, yield, leftSum, isLeftIncluded, leftSibValue);
                 },
                 [&tio, &levelTreeArray, one, isNotDone, rightIndex, rightIndexAS, &rightSum, rightLastBit](yield_t &yield) {
-                    // Sibling index for a node at (level-relative) index i is:
-                    // - i+1 if i is even (left child)
-                    // - i-1 if i is odd  (right child)
-                    RegAS rightSibIndex;
 
                     RegAS plusOne = rightIndexAS + one;
                     RegAS minusOne = rightIndexAS - one;
-                    // mpc_select: z = x if f=0, z = y if f=1
                     // rightLastBit=0 (left child)  → sibling = i+1 (plusOne)
                     // rightLastBit=1 (right child) → sibling = i-1 (minusOne)
+                    RegAS rightSibIndex;
                     mpc_select(tio, yield, rightSibIndex, rightLastBit, plusOne, minusOne);
 
                     auto levelTreeArrayCoro = levelTreeArray.context(yield);
@@ -280,12 +271,6 @@ RegAS SegmentTree11::RangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS l
     for (size_t level = 0; level < depth; level++) {
         totalSum += levelSums[level];
     }
-
-    // reconstuct and print levelsums
-    // for (size_t level = 0; level < depth; level++) {
-    //     auto curLevelSum = mpc_reconstruct(tio, yield, levelSums[level]);
-    //     std::cout << "Level " << level << ": " << curLevelSum << std::endl;
-    // }
 
     return totalSum;
 }
@@ -392,7 +377,6 @@ void SegTree11(MPCIO &mpcio, const PRACOptions &opts, char **args) {
             segTree.Update(tio, mpcio, yield, index, value);
         }
 
-        segTree.printSegmentTree(tio, yield);
         // Range Queries
         for (size_t q = 0; q < n_queries; ++q) {
             RegXS left_index, right_index;
