@@ -11,7 +11,7 @@
 #include <functional>
 
 // uncomment to enable intermediate reconstructions and logging
-// #define SEGTREE_VERBOSE
+#define SEGTREE_VERBOSE
 
 /*
 The segment tree data structure in SegmentTree12 uses an ARRAY layout (heap-style indexing).
