@@ -14,12 +14,13 @@
 // #define SEGTREE_VERBOSE
 
 /*
-The segment tree data structure in SegmentTree8 uses a ARRAY layout
+The segment tree data structure in SegmentTree11 uses an ARRAY layout (heap-style indexing).
 
 ARRAY STRUCTURE:
+- Complete binary tree stored in an array with root at index 1
 - Each level k has 2^k nodes
-- Total array size: 2^d nodes
-- Level k starts at index: 2^k
+- Total nodes in the tree array: 2^d (indices [1 .. 2^d - 1] are used)
+- Level k starts at array index: 2^k
 
 LEVEL-WISE LAYOUT EXAMPLE:
 For depth d=3, array [100, 200, 300, 400] (4 elements):
@@ -36,35 +37,38 @@ Level:   0   1   1   2   2   2  2
 MATHEMATICAL FORMULAS:
 - Level k start index: 2^k
 - Level k length: 2^k
-- Total array size: 2^d
+- Total nodes (including index 0 unused): 2^d
 */
 
 /*
 RANGE SUM QUERY OPERATION (Level-wise Processing)
 
-The range sum query efficiently computes the sum of elements in a given range
-[left, right] using the level-wise segment tree structure. The algorithm
-processes entire levels at once using level-specific Flat objects for optimal
-MPC performance.
+The range sum query computes the sum of elements in a given range [left, right]
+using the level-wise segment tree structure. The algorithm processes levels using
+level-specific Flat objects for performance in MPC.
 
-parent of a index is at index/2 we can simply do index >> 1 to the xor shares of
-the index store this path if needed if index are level wise, still the index >>
-1 to their xor shares gives shares of parent index in its level
+Indexing notes:
+- Parent of node at array index i is at i/2 (i >> 1). In this implementation,
+  indices are maintained as level-relative indices while traversing levels, so
+  shifting right still yields the parent index at the next higher level.
+- Unlike SegmentTree9, SegmentTree11 does NOT maintain a separate Sibling ORAM.
+  Instead, the sibling index is derived via MPC from the current index (using the
+  index parity / last bit), and then used to read the sibling value from the Tree
+  ORAM.
 
 Algorithm Overview:
 1. Start with leaf-level indices (left, right)
-2. PreCompute the path indices for all levels going up the tree
+2. Precompute the path indices for all levels going up the tree
 3. For each level from leaves to root:
-   - Create level-specific Flat objects for Tree ORAM and Sibling ORAM
+   - Create a level-specific Flat object for the Tree ORAM
    - Compute Additive Shares of XOR shares of left and right indices
-   - use Additive share to compare them and compute isNotDone flag
-   - Get the last bit of xor shares of left and right indeces which functions as
-boolean shares of isOdd
-   - get leftSiblingIndex and rightSiblingIndex from SiblingArray and then using
-these get leftSiblingValue and rightSiblingValue from segTree
-   - add leftSiblingValue to sum if left is a left child => !isOdd && isNotDone
-   - add rightSiblingValue to sum if right is a right child => isOdd &&
-isNotDone
+   - Use additive-share comparison to compute isNotDone
+   - Use the least significant bit of XOR shares of left/right indices as a
+     boolean-share isOdd
+   - Compute left/right sibling indices via MPC (no sibling ORAM), then read the
+     sibling values from the Tree ORAM
+   - Add left sibling value if left is a left child: (!isOdd && isNotDone)
+   - Add right sibling value if right is a right child: (isOdd && isNotDone)
 */
 
 /*
