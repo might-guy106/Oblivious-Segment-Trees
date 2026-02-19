@@ -13,7 +13,7 @@ if [[ $BASH_SOURCE = */* ]]; then
 fi
 
 # Default values
-DEPTHS="4 8 12 16 20 24"
+DEPTHS="8 12 16"
 UPDATES="5"
 QUERIES="5"
 VARIANT="segmenttree11"

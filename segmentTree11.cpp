@@ -347,43 +347,43 @@ RegAS SegmentTree11::computeRangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, 
     std::cout << "Step 2 (Direct Sum Computation) Time: " << step2_duration << " ms" << std::endl;
 
     // Log detailed level-wise stats
-    if (logger) {
-        std::ostringstream oss;
-        oss << "\nLevel-wise Timing in ms (relative to parallel start) "
-               "[T=Timestamp, "
-               "D=Duration]:\n";
-        oss << "Level | Start(T)   | Indices(T) | IsDone(T)  | SibStart(T) | LeftORAM(T) | RightORAM(T) | Siblings(T) "
-               "| "
-               "End(T)     | Total(D)\n";
-        oss << "------+------------+------------+------------+-------------+-------------+--------------+-------------+"
-               "-------"
-               "-----+----------\n";
-        for (size_t level = 0; level < depth; level++) {
-            if (stats[level].end_ms > 0) {
-                double t_start = stats[level].start_ms;
-                double t_idx = stats[level].indices_ms;
-                double t_done = stats[level].is_not_done_ms;
-                double t_sib_start = stats[level].siblings_start_ms;
-                double t_left_oram = stats[level].left_oram_access_ms;
-                double t_right_oram = stats[level].right_oram_access_ms;
-                double t_sib = stats[level].siblings_ms;
-                double t_end = stats[level].end_ms;
+    // if (logger) {
+    //     std::ostringstream oss;
+    //     oss << "\nLevel-wise Timing in ms (relative to parallel start) "
+    //            "[T=Timestamp, "
+    //            "D=Duration]:\n";
+    //     oss << "Level | Start(T)   | Indices(T) | IsDone(T)  | SibStart(T) | LeftORAM(T) | RightORAM(T) | Siblings(T) "
+    //            "| "
+    //            "End(T)     | Total(D)\n";
+    //     oss << "------+------------+------------+------------+-------------+-------------+--------------+-------------+"
+    //            "-------"
+    //            "-----+----------\n";
+    //     for (size_t level = 0; level < depth; level++) {
+    //         if (stats[level].end_ms > 0) {
+    //             double t_start = stats[level].start_ms;
+    //             double t_idx = stats[level].indices_ms;
+    //             double t_done = stats[level].is_not_done_ms;
+    //             double t_sib_start = stats[level].siblings_start_ms;
+    //             double t_left_oram = stats[level].left_oram_access_ms;
+    //             double t_right_oram = stats[level].right_oram_access_ms;
+    //             double t_sib = stats[level].siblings_ms;
+    //             double t_end = stats[level].end_ms;
 
-                oss << std::setw(5) << level << " | " << std::setw(10) << std::fixed << std::setprecision(3) << t_start
-                    << " | " << std::setw(10) << (t_idx) << " | " << std::setw(10) << (t_done) << " | " << std::setw(11)
-                    << t_sib_start << " | " << std::setw(11) << t_left_oram << " | " << std::setw(12) << t_right_oram
-                    << " | " << std::setw(11) << (t_sib) << " | " << std::setw(10) << t_end << " | " << std::setw(8)
-                    << (t_end - t_start) << "\n";
+    //             oss << std::setw(5) << level << " | " << std::setw(10) << std::fixed << std::setprecision(3) << t_start
+    //                 << " | " << std::setw(10) << (t_idx) << " | " << std::setw(10) << (t_done) << " | " << std::setw(11)
+    //                 << t_sib_start << " | " << std::setw(11) << t_left_oram << " | " << std::setw(12) << t_right_oram
+    //                 << " | " << std::setw(11) << (t_sib) << " | " << std::setw(10) << t_end << " | " << std::setw(8)
+    //                 << (t_end - t_start) << "\n";
 
-                // oss << std::setw(5) << level << " | " << std::setw(10) << std::fixed << std::setprecision(3) <<
-                // t_start
-                //     << " | " << std::setw(10) << t_idx << " | " << std::setw(10) << t_done << " | " << std::setw(11)
-                //     << t_sib << " | " << std::setw(10) << t_end << " | " << std::setw(8) << (t_end - t_start) <<
-                //     "\n";
-            }
-        }
-        logger->log_output(oss.str());
-    }
+    //             // oss << std::setw(5) << level << " | " << std::setw(10) << std::fixed << std::setprecision(3) <<
+    //             // t_start
+    //             //     << " | " << std::setw(10) << t_idx << " | " << std::setw(10) << t_done << " | " << std::setw(11)
+    //             //     << t_sib << " | " << std::setw(10) << t_end << " | " << std::setw(8) << (t_end - t_start) <<
+    //             //     "\n";
+    //         }
+    //     }
+    //     logger->log_output(oss.str());
+    // }
 
     // Log metrics if logger is provided
     if (logger) {
