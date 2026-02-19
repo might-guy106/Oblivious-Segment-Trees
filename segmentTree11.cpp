@@ -196,9 +196,18 @@ RegAS SegmentTree11::RangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS l
             RegAS leftSum, rightSum;
             run_coroutines(
                 sub_yield,
-                [&tio, &levelTreeArray, one, minusone, isNotDone, leftIndex, &leftSum, leftLastBit](yield_t &yield) {
+                [&tio, &levelTreeArray, one, isNotDone, leftIndex, leftIndexAS, &leftSum, leftLastBit](yield_t &yield) {
+                    // Sibling index for a node at (level-relative) index i is:
+                    // - i+1 if i is even (left child)
+                    // - i-1 if i is odd  (right child)
                     RegAS leftSibIndex;
-                    mpc_select(tio, yield, leftSibIndex, leftLastBit, one, minusone);
+
+                    RegAS plusOne = leftIndexAS + one;
+                    RegAS minusOne = leftIndexAS - one;
+                    // mpc_select: z = x if f=0, z = y if f=1
+                    // leftLastBit=0 (left child)  → sibling = i+1 (plusOne)
+                    // leftLastBit=1 (right child) → sibling = i-1 (minusOne)
+                    mpc_select(tio, yield, leftSibIndex, leftLastBit, plusOne, minusOne);
 
                     auto levelTreeArrayCoro = levelTreeArray.context(yield);
                     RegAS leftSibValue = levelTreeArrayCoro[leftSibIndex];
@@ -207,9 +216,18 @@ RegAS SegmentTree11::RangeSum(MPCTIO &tio, MPCIO &mpcio, yield_t &yield, RegXS l
                     mpc_and(tio, yield, isLeftIncluded, isNotDone, leftLastBit ^ tio.player());
                     mpc_flagmult(tio, yield, leftSum, isLeftIncluded, leftSibValue);
                 },
-                [&tio, &levelTreeArray, one, minusone, isNotDone, rightIndex, &rightSum, rightLastBit](yield_t &yield) {
+                [&tio, &levelTreeArray, one, isNotDone, rightIndex, rightIndexAS, &rightSum, rightLastBit](yield_t &yield) {
+                    // Sibling index for a node at (level-relative) index i is:
+                    // - i+1 if i is even (left child)
+                    // - i-1 if i is odd  (right child)
                     RegAS rightSibIndex;
-                    mpc_select(tio, yield, rightSibIndex, rightLastBit, one, minusone);
+
+                    RegAS plusOne = rightIndexAS + one;
+                    RegAS minusOne = rightIndexAS - one;
+                    // mpc_select: z = x if f=0, z = y if f=1
+                    // rightLastBit=0 (left child)  → sibling = i+1 (plusOne)
+                    // rightLastBit=1 (right child) → sibling = i-1 (minusOne)
+                    mpc_select(tio, yield, rightSibIndex, rightLastBit, plusOne, minusOne);
 
                     auto levelTreeArrayCoro = levelTreeArray.context(yield);
                     RegAS rightSibValue = levelTreeArrayCoro[rightSibIndex];
