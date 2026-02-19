@@ -19,7 +19,7 @@ The segment tree data structure in SegmentTree12 uses an ARRAY layout (heap-styl
 ARRAY STRUCTURE:
 - Complete binary tree stored in an array with root at index 1
 - Each level k has 2^k nodes
-- Total nodes in the tree array: 2^d (indices [1 .. 2^d - 1] are used)
+- Total nodes in the tree: 2^d (indices [1 .. 2^d - 1] are used; index 0 is unused)
 - Level k starts at array index: 2^k
 
 LEVEL-WISE LAYOUT EXAMPLE:
@@ -41,48 +41,43 @@ MATHEMATICAL FORMULAS:
 */
 
 /*
-RANGE SUM QUERY OPERATION (Level-wise Processing)
+RANGE SUM QUERY OPERATION (Absolute-index Processing)
 
 The range sum query computes the sum of elements in a given range [left, right]
-using a level-wise segment tree structure. The algorithm processes levels using
-level-specific Flat objects for performance in MPC.
+where left and right are ABSOLUTE indices in the flattened/heap segment tree
+(not level-relative leaf indices).
 
 Indexing notes:
-- Parent of node at array index i is at i/2 (i >> 1). In this implementation,
-  indices are maintained as level-relative indices while traversing levels, so
-  shifting right still yields the parent index at the next higher level.
-- Sibling indices are obtained via a separate Sibling ORAM (SiblingOram) that
-  maps the current node's level-relative index to its sibling's level-relative
-  index. This is the key distinction of SegmentTree12 versus variants that
-  compute sibling indices via MPC directly.
+- Parent of node at array index i is at i/2 (i >> 1).
+- Sibling pointers are stored in a separate Sibling ORAM (SiblingOram) as ABSOLUTE
+  tree indices: sibling(i) = (i ^ 1) for i >= 1.
+- This implementation does NOT create per-level Flat sub-ORAMs. All accesses use
+  the main ORAM flats directly.
 
 Algorithm Overview:
-1. Start with leaf-level indices (left, right)
-2. Precompute the path indices for all levels going up the tree
+1. Start with absolute indices (left, right)
+2. Precompute the path indices for all levels going up the tree by repeated >> 1
 3. For each level from leaves to root:
-   - Create level-specific Flat objects for the Tree ORAM and the Sibling ORAM
-   - Compute Additive Shares of XOR shares of left and right indices
    - Use additive-share comparison to compute isNotDone
    - Use the least significant bit of XOR shares of left/right indices as a
      boolean-share isOdd
-   - Read left/right sibling indices from the Sibling ORAM; then read the sibling
-     values from the Tree ORAM
+   - Read left/right sibling indices from the Sibling ORAM (absolute indices),
+     then read sibling values from the Tree ORAM
    - Add left sibling value if left is a left child: (!isOdd && isNotDone)
    - Add right sibling value if right is a right child: (isOdd && isNotDone)
 */
 
 /*
-UPDATE OPERATION (Level-wise Propagation)
+UPDATE OPERATION (Absolute-index Propagation)
 
-The update operation modifies a single array element and propagates the change
-up through all levels using level-specific addressing and parent relationships.
+The update operation modifies a single node at an ABSOLUTE tree index and
+propagates the change up through all levels by repeatedly shifting to the parent.
 
 Algorithm Overview:
-1. Calculate difference between new and current values
-2. For each level from leaves to root:
-   - Create level-specific Flat objects
-   - Update current node with difference
-   - Move to parent using level-relative parent index
+1. Calculate difference between new and current values at the absolute index
+2. For each level from leaf to root:
+   - Add diff to the current absolute index in the Tree ORAM
+   - Move to parent using index >>= 1
 */
 
 struct LevelStats {
