@@ -46,12 +46,12 @@ Use `run-single-experiment` (it runs inside all three containers and handles par
 Example (online-only mode):
 ```bash
 # Usage: ./run-single-experiment <mode> <depth> <updates> <queries> [variant] [threads]
-./run-single-experiment onlineonly 4 3 5 segmenttree9
+./run-single-experiment onlineonly 4 3 5 segmenttreebasic
 ```
 
 Run the full pipeline (onlineonly → preprocessing → online):
 ```bash
-./run-single-experiment all 4 3 5 segmenttree9
+./run-single-experiment all 4 3 5 segmenttreebasic
 ```
 
 ---
@@ -66,7 +66,7 @@ Use `run-single-experiment` to run one configuration in one mode or all modes.
 ./run-single-experiment all <depth> <updates> <queries> [variant] [threads]
 
 # Example:
-./run-single-experiment all 8 5 0 segmenttree9
+./run-single-experiment all 8 5 0 segmenttreebasic
 ```
 
 <!--Run individual phases:
@@ -82,14 +82,14 @@ Runs, for each depth, both:
 - query experiment: `updates=0, queries=<QUERIES>`
 
 ```bash
-./run-batch-experiments --depths "4 6 8" --updates "5" --queries "5" --variant segmenttree11
+./run-batch-experiments --depths "4 6 8" --updates "5" --queries "5" --variant segmenttreebasic
 ```
 
 Optional threads control:
 ```bash
-./run-batch-experiments --depths "4 6 8" --variant segmenttree9 --threads 8
+./run-batch-experiments --depths "4 6 8" --variant segmenttreebasic --threads 8
 # or auto:
-./run-batch-experiments --depths "4 6 8" --variant segmenttree9 --threads auto
+./run-batch-experiments --depths "4 6 8" --variant segmenttreebasic --threads auto
 ```
 
 ### C) Network study (vary latency/bandwidth)
@@ -97,7 +97,7 @@ Sweeps `--latencies` × `--bandwidths`. For each network configuration it:
 1) cleans logs, 2) sets networking, 3) runs batch experiments, 4) tags logs, 5) unsets networking.
 
 ```bash
-./run-network-study --latencies "0 20 40" --bandwidths "10 50 100" --depths "4 6 8" --variant segmenttree11
+./run-network-study --latencies "0 20 40" --bandwidths "10 50 100" --depths "4 6 8" --variant segmenttreebasic
 ```
 
 <!-----

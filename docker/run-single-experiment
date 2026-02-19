@@ -23,7 +23,7 @@ MODE=$1
 DEPTH=$2
 UPDATES=$3
 QUERIES=$4
-VARIANT=${5:-segmenttree9}
+VARIANT=${5:-segmenttreeopt}
 THREADS_ARG=$6
 
 if [ -z "$MODE" ] || [ -z "$DEPTH" ] || [ -z "$UPDATES" ] || [ -z "$QUERIES" ]; then

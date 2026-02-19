@@ -17,7 +17,7 @@ fi
 LATENCIES="0 20 40 60"
 BANDWIDTHS="10 50 100"
 DEPTHS="8 12 16"
-VARIANT="segmenttree11"
+VARIANT="segmenttreeopt"
 UPDATES="5"
 QUERIES="5"
 

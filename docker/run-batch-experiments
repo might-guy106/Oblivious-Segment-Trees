@@ -16,7 +16,7 @@ fi
 DEPTHS="8 12 16"
 UPDATES="5"
 QUERIES="5"
-VARIANT="segmenttree11"
+VARIANT="segmenttreeopt"
 THREADS="auto"
 
 # Parse command line arguments
