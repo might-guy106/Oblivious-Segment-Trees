@@ -10,8 +10,9 @@
 #include "mpcops.hpp"
 #include "online.hpp"
 #include "rdpf.hpp"
-#include "segmentTree11.hpp"
 #include "segmentTree9.hpp"
+#include "segmentTree11.hpp"
+#include "segmentTree12.hpp"
 #include "shapes.hpp"
 
 static void online_test(MPCIO &mpcio, const PRACOptions &opts, char **args) {
@@ -1601,6 +1602,9 @@ void online_main(MPCIO &mpcio, const PRACOptions &opts, char **args) {
     } else if (!strcmp(*args, "segmenttree11")) {
         ++args;
         SegTree11(mpcio, opts, args);
+    } else if (!strcmp(*args, "segmenttree12")) {
+        ++args;
+        SegTree12(mpcio, opts, args);
     } else {
         std::cerr << "Unknown mode " << *args << "\n";
     }
