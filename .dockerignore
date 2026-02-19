@@ -1,2 +1,5 @@
-logs/
-plots/
+logs*/
+plots*/
+*.log
+*t0
+*.o
